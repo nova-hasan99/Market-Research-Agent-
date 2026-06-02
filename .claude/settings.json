@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"e:\\\\Developer Hub\\\\Trading\" -Recurse -Force)",
+      "Bash(Select-Object FullName)",
+      "PowerShell(head -200)",
+      "PowerShell(Get-ChildItem -Path \"e:\\\\Developer Hub\\\\Trading\" -Recurse | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"e:\\\\Developer Hub\\\\Trading\" -Exclude venv -Recurse -Force | Where-Object { -not $_.PSIsContainer } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"e:\\\\Developer Hub\\\\Trading\" -Exclude venv, .git | ForEach-Object { $_.FullName })",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"from app.routes import router; from main import app; print\\('All imports OK — routes:', [r.path for r in app.routes]\\)\")",
+      "Bash(python -m app.analysis)",
+      "Bash(python -m app.indicators)",
+      "Bash(.venv/Scripts/python -m app.indicators)",
+      "Bash(venv/Scripts/python -m app.indicators)",
+      "Bash(venv/Scripts/python -m app.analysis)",
+      "Bash(venv/Scripts/python -c ' *)",
+      "Bash(venv/Scripts/python -m app.providers.cot)",
+      "Bash(venv/Scripts/python -m app.providers.yields)",
+      "Bash(venv/Scripts/uvicorn app.main:app --port 8001 --host 127.0.0.1)",
+      "Bash(curl -s -X POST http://127.0.0.1:8001/api/analyze -H 'Content-Type: application/json' -d '{\"asset_type\":\"forex\",\"symbol\":\"EUR\",\"quote\":\"USD\"}')",
+      "Bash(venv/Scripts/uvicorn main:app --port 8001 --host 127.0.0.1)",
+      "Bash(taskkill /F /IM python.exe /FI \"WINDOWTITLE eq uvicorn*\")",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /PID 6600 /F)",
+      "PowerShell(Stop-Process -Id 6600 -Force -ErrorAction SilentlyContinue)",
+      "Bash(python -c \"from app.providers.stock_info import fetch_stock_fundamentals; print\\('stock_info import OK'\\)\")",
+      "Bash(python -c \"from app.analysis import compute_stock_alignment; print\\('analysis import OK'\\)\")",
+      "Bash(python -c \"from app.routes import router; print\\('routes import OK'\\)\")",
+      "Bash(python -c \"from app.ai import generate_ai_summary; print\\('ai import OK'\\)\")",
+      "Bash(python -m py_compile app/routes.py app/analysis.py app/providers/stock_info.py app/ai.py)",
+      "Bash(uvicorn main:app --host 0.0.0.0 --port 8000 --reload)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(curl -s \"http://localhost:8000/api/search-stock?q=Apple\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/analyze -H 'Content-Type: application/json' -d '{\"asset_type\":\"stock\",\"symbol\":\"AAPL\"}')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Score:', d.get\\('score'\\), 'Bias:', d.get\\('bias'\\), 'Asset:', d.get\\('asset'\\)\\); print\\('Breakdown keys:', list\\(d.get\\('breakdown',{}\\).keys\\(\\)\\)\\); print\\('Fundamentals available:', d.get\\('fundamentals',{}\\).get\\('available'\\)\\); print\\('Earnings beats:', d.get\\('earnings',{}\\).get\\('beats'\\)\\); print\\('Analyst consensus:', d.get\\('analyst',{}\\).get\\('consensus'\\)\\); print\\('History 1Y:', d.get\\('history',{}\\).get\\('returns',{}\\).get\\('1Y'\\)\\)\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/analyze -H 'Content-Type: application/json' -d '{\"asset_type\":\"forex\",\"symbol\":\"EUR\",\"quote\":\"USD\"}')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Score:', d.get\\('score'\\), 'Bias:', d.get\\('bias'\\), 'Asset:', d.get\\('asset'\\)\\); print\\('Breakdown keys:', list\\(d.get\\('breakdown',{}\\).keys\\(\\)\\)\\); print\\('COT available:', d.get\\('cot',{}\\).get\\('available'\\)\\); print\\('Yield diff:', d.get\\('yield_diff',{}\\).get\\('available'\\)\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); ai=d.get\\('ai_summary',{}\\); print\\('AI Provider:', ai.get\\('provider'\\)\\); print\\('AI Text \\(first 300 chars\\):', \\(ai.get\\('text',''\\)\\)[:300]\\)\")",
+      "Bash(python -m py_compile \"e:/Developer Hub/Trading/app/routes.py\")"
+    ]
+  }
+}

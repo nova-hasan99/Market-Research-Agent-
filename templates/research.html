@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MarketLens — Research</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="app-body">
+
+  <!-- Navbar -->
+  <nav class="app-nav">
+    <div class="nav-inner">
+      <a href="/" class="logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">MarketLens</span>
+      </a>
+      <div class="nav-links">
+        <a href="/" class="nav-btn-ghost">Home</a>
+        <a href="/api/providers" target="_blank" class="nav-btn-ghost">API Status</a>
+        <!-- Timezone Picker -->
+        <div class="tz-picker" id="tz-picker">
+          <button class="tz-trigger" onclick="toggleTZPanel()">
+            <span class="tz-globe">🌐</span>
+            <span id="tz-label">UTC</span>
+            <span class="tz-caret">▾</span>
+          </button>
+          <div class="tz-panel" id="tz-panel">
+            <input id="tz-search-input" type="text"
+                   placeholder="Search city or region..."
+                   oninput="_renderTZList(this.value)"
+                   autocomplete="off" />
+            <div class="tz-list" id="tz-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-main">
+
+    <!-- Tab Switcher -->
+    <div class="tab-switcher">
+      <button id="tab-forex" class="tab-btn active" onclick="switchTab('forex')">⬡ Forex</button>
+      <button id="tab-stock" class="tab-btn" onclick="switchTab('stock')">◎ Stocks</button>
+    </div>
+
+    <!-- Forex Form -->
+    <div id="form-forex" class="form-panel">
+      <div class="form-card">
+        <h2 class="form-title">Forex Analysis</h2>
+        <p class="form-desc">Select a currency pair to get a full multi-layer market research report.</p>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Base Currency</label>
+            <select id="fx-base">
+              <option value="EUR">EUR — Euro</option>
+              <option value="GBP">GBP — British Pound</option>
+              <option value="USD">USD — US Dollar</option>
+              <option value="AUD">AUD — Australian Dollar</option>
+              <option value="NZD">NZD — New Zealand Dollar</option>
+              <option value="CAD">CAD — Canadian Dollar</option>
+              <option value="CHF">CHF — Swiss Franc</option>
+              <option value="JPY">JPY — Japanese Yen</option>
+            </select>
+          </div>
+          <div class="form-sep">/</div>
+          <div class="form-group">
+            <label>Quote Currency</label>
+            <select id="fx-quote">
+              <option value="USD">USD — US Dollar</option>
+              <option value="EUR">EUR — Euro</option>
+              <option value="GBP">GBP — British Pound</option>
+              <option value="JPY">JPY — Japanese Yen</option>
+              <option value="AUD">AUD — Australian Dollar</option>
+              <option value="CAD">CAD — Canadian Dollar</option>
+              <option value="CHF">CHF — Swiss Franc</option>
+              <option value="NZD">NZD — New Zealand Dollar</option>
+            </select>
+          </div>
+          <button class="analyze-btn" onclick="analyzeForex()">
+            <span id="fx-btn-text">Analyze →</span>
+            <span id="fx-spinner" class="spinner hidden"></span>
+          </button>
+        </div>
+        <div class="quick-pairs">
+          <span class="qp-label">Quick:</span>
+          <button class="qp-btn" onclick="setForexPair('EUR','USD')">EUR/USD</button>
+          <button class="qp-btn" onclick="setForexPair('GBP','USD')">GBP/USD</button>
+          <button class="qp-btn" onclick="setForexPair('USD','JPY')">USD/JPY</button>
+          <button class="qp-btn" onclick="setForexPair('AUD','USD')">AUD/USD</button>
+          <button class="qp-btn" onclick="setForexPair('EUR','JPY')">EUR/JPY</button>
+          <button class="qp-btn" onclick="setForexPair('GBP','JPY')">GBP/JPY</button>
+          <button class="qp-btn" onclick="setForexPair('USD','CAD')">USD/CAD</button>
+          <button class="qp-btn" onclick="setForexPair('USD','CHF')">USD/CHF</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stock Form -->
+    <div id="form-stock" class="form-panel hidden">
+      <div class="form-card">
+        <h2 class="form-title">Stock Analysis</h2>
+        <p class="form-desc">Search any company by name or ticker for a full professional research report including fundamentals, earnings history, analyst consensus, and insider activity.</p>
+        <div class="form-row">
+          <div class="form-group stock-search-group" style="flex:1">
+            <label>Company or Ticker Symbol</label>
+            <div class="stock-search-container">
+              <input id="stock-search-input" type="text"
+                     placeholder="e.g. Apple, NVDA, Tesla, Microsoft..."
+                     oninput="onStockSearch(this.value)"
+                     onkeydown="onStockSearchKey(event)"
+                     autocomplete="off" />
+              <input id="stock-symbol-hidden" type="hidden" value="" />
+              <div id="stock-dropdown" class="stock-dropdown hidden"></div>
+            </div>
+          </div>
+          <button class="analyze-btn" onclick="analyzeStock()">
+            <span id="st-btn-text">Analyze →</span>
+            <span id="st-spinner" class="spinner hidden"></span>
+          </button>
+        </div>
+        <div class="quick-pairs">
+          <span class="qp-label">Popular:</span>
+          <button class="qp-btn" onclick="setStock('AAPL','AAPL - Apple Inc.')">AAPL</button>
+          <button class="qp-btn" onclick="setStock('TSLA','TSLA - Tesla Inc.')">TSLA</button>
+          <button class="qp-btn" onclick="setStock('NVDA','NVDA - NVIDIA Corp.')">NVDA</button>
+          <button class="qp-btn" onclick="setStock('META','META - Meta Platforms')">META</button>
+          <button class="qp-btn" onclick="setStock('AMZN','AMZN - Amazon.com')">AMZN</button>
+          <button class="qp-btn" onclick="setStock('GOOGL','GOOGL - Alphabet Inc.')">GOOGL</button>
+          <button class="qp-btn" onclick="setStock('MSFT','MSFT - Microsoft Corp.')">MSFT</button>
+          <button class="qp-btn" onclick="setStock('SPY','SPY - S&P 500 ETF')">SPY</button>
+          <button class="qp-btn" onclick="setStock('AMD','AMD - Advanced Micro Devices')">AMD</button>
+          <button class="qp-btn" onclick="setStock('COIN','COIN - Coinbase Global')">COIN</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Banner -->
+    <div id="error-banner" class="error-banner hidden">
+      <span id="error-text"></span>
+      <button onclick="document.getElementById('error-banner').classList.add('hidden')">✕</button>
+    </div>
+
+    <!-- Results Section -->
+    <div id="results" class="results hidden">
+
+      <!-- Row 1: Header + Score + Quick Stats -->
+      <div class="results-top">
+
+        <!-- Asset Header -->
+        <div class="card header-card">
+          <div class="asset-name" id="r-asset">—</div>
+          <div class="asset-price" id="r-price">—</div>
+          <div id="r-bias-badge" class="bias-badge">—</div>
+          <div class="asset-meta" id="r-meta">—</div>
+        </div>
+
+        <!-- Score Gauge -->
+        <div class="card gauge-card" id="gauge-card">
+          <svg viewBox="0 0 200 120" class="gauge-svg">
+            <defs>
+              <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#ef4444" />
+                <stop offset="45%" style="stop-color:#f59e0b" />
+                <stop offset="100%" style="stop-color:#10b981" />
+              </linearGradient>
+            </defs>
+            <path d="M 15 105 A 85 85 0 0 1 185 105"
+                  fill="none" stroke="#1f2937" stroke-width="18" stroke-linecap="round" />
+            <path id="gauge-arc" d="M 15 105 A 85 85 0 0 1 185 105"
+                  fill="none" stroke="url(#gaugeGrad)" stroke-width="18" stroke-linecap="round"
+                  stroke-dasharray="267" stroke-dashoffset="267"
+                  style="transition: stroke-dashoffset 1s ease" />
+            <text id="gauge-num" x="100" y="88" text-anchor="middle"
+                  font-size="34" fill="#f9fafb" font-weight="700" font-family="Inter">—</text>
+            <text x="100" y="108" text-anchor="middle"
+                  font-size="10" fill="#6b7280" font-family="Inter">ALIGNMENT SCORE / 100</text>
+          </svg>
+          <div id="conflict-badges" class="conflict-badges"></div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="card quick-stats-card">
+          <div class="qs-title">Key Indicators</div>
+          <table class="qs-table">
+            <tr><td class="qs-label">Daily RSI</td><td class="qs-val" id="qs-drsi">—</td></tr>
+            <tr><td class="qs-label">Hourly RSI</td><td class="qs-val" id="qs-hrsi">—</td></tr>
+            <tr><td class="qs-label">Daily Trend</td><td class="qs-val" id="qs-dtrend">—</td></tr>
+            <tr><td class="qs-label">Daily MACD</td><td class="qs-val" id="qs-dmacd">—</td></tr>
+            <tr><td class="qs-label">Volatility ATR%</td><td class="qs-val" id="qs-atr">—</td></tr>
+            <tr><td class="qs-label">Sentiment</td><td class="qs-val" id="qs-sent">—</td></tr>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- Key Signal + Main Risk Card -->
+      <div class="card key-signal-card" id="key-signal-card">
+        <div class="ks-inner">
+          <div class="ks-half" id="ks-signal-half">
+            <span class="ks-icon">⚡</span>
+            <div class="ks-content">
+              <div class="ks-label">Key Signal</div>
+              <div id="ks-text" class="ks-text">—</div>
+            </div>
+          </div>
+          <div class="ks-divider"></div>
+          <div class="ks-half" id="ks-risk-half">
+            <span class="ks-icon">⚠</span>
+            <div class="ks-content">
+              <div class="ks-label">Main Risk</div>
+              <div id="ks-risk" class="ks-risk">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trade Guidance Card -->
+      <div class="card tg-card" id="trade-guide-card">
+        <div class="card-header">
+          <span class="card-title">⚡ Trade Guidance</span>
+          <span id="tg-signal-badge" class="tg-signal-badge">—</span>
+        </div>
+
+        <div class="tg-body">
+          <!-- Left: probability + levels -->
+          <div class="tg-left">
+            <div class="tg-section-label">Signal Probability</div>
+            <div class="tg-prob-track">
+              <div id="tg-fill-up"   class="tg-fill-up"   style="width:50%"></div>
+              <div id="tg-fill-down" class="tg-fill-down" style="width:50%"></div>
+            </div>
+            <div class="tg-prob-labels">
+              <span id="tg-lbl-up"   class="tg-lbl-up">—</span>
+              <span id="tg-lbl-down" class="tg-lbl-down">—</span>
+            </div>
+
+            <div class="tg-section-label" style="margin-top:1rem">Suggested Trade Levels</div>
+            <div id="tg-levels"></div>
+          </div>
+
+          <!-- Right: confidence box -->
+          <div class="tg-right">
+            <div class="tg-conf-box">
+              <div class="tg-conf-label">Confidence</div>
+              <div id="tg-conf-value" class="tg-conf-value">—</div>
+              <div id="tg-conf-score" class="tg-conf-score">— / 100</div>
+              <div id="tg-conf-advice" class="tg-conf-advice">—</div>
+            </div>
+            <div class="tg-disclaimer">
+              These are calculated reference levels based on signal analysis.<br>
+              Always use a stop loss and manage risk. Not financial advice.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Summary -->
+      <div class="card ai-card">
+        <div class="card-header">
+          <span class="card-title">🤖 AI Market Summary</span>
+          <span class="ai-provider-badge" id="ai-provider-badge">—</span>
+        </div>
+        <div class="ai-text" id="ai-summary-text">—</div>
+      </div>
+
+      <!-- Technical Analysis Tables -->
+      <div class="two-col">
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📊 Daily Technical</span>
+            <span id="daily-dir-badge" class="dir-badge">—</span>
+          </div>
+          <table class="data-table">
+            <thead><tr><th>Indicator</th><th>Value</th><th>Signal</th></tr></thead>
+            <tbody id="daily-table"></tbody>
+          </table>
+          <div class="levels-row">
+            <div class="level-box">
+              <span class="level-label">Support</span>
+              <span class="level-val down" id="d-support">—</span>
+            </div>
+            <div class="level-box">
+              <span class="level-label">Resistance</span>
+              <span class="level-val up" id="d-resistance">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">⏱ Hourly Technical</span>
+            <span id="hourly-dir-badge" class="dir-badge">—</span>
+          </div>
+          <table class="data-table">
+            <thead><tr><th>Indicator</th><th>Value</th><th>Signal</th></tr></thead>
+            <tbody id="hourly-table"></tbody>
+          </table>
+          <div class="levels-row">
+            <div class="level-box">
+              <span class="level-label">Support</span>
+              <span class="level-val down" id="h-support">—</span>
+            </div>
+            <div class="level-box">
+              <span class="level-label">Resistance</span>
+              <span class="level-val up" id="h-resistance">—</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Score Breakdown -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">⚡ Score Breakdown</span>
+        </div>
+        <div class="breakdown-grid" id="breakdown-grid"></div>
+      </div>
+
+      <!-- Stock: Fundamentals + Historical Performance (stock only) -->
+      <div class="two-col stock-only" id="stock-fund-hist-row">
+
+        <div class="card" id="fundamentals-card">
+          <div class="card-header">
+            <span class="card-title">📋 Company Fundamentals</span>
+            <span id="fund-sector-badge" class="dir-badge neutral">—</span>
+          </div>
+          <div id="fund-company-desc" class="fund-company-desc hidden">—</div>
+          <div id="fund-metrics-grid" class="fund-metrics-grid"></div>
+        </div>
+
+        <div class="card" id="history-card">
+          <div class="card-header">
+            <span class="card-title">📈 Historical Performance vs SPY</span>
+            <span id="hist-dir-badge" class="dir-badge">—</span>
+          </div>
+          <div id="hist-label" class="hist-label">—</div>
+          <table class="data-table" style="margin-top:0.75rem">
+            <thead><tr><th>Period</th><th>Stock</th><th>SPY</th><th>vs SPY</th></tr></thead>
+            <tbody id="hist-table-body"></tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- Stock: Earnings + Analyst Consensus (stock only) -->
+      <div class="two-col stock-only" id="stock-earn-analyst-row">
+
+        <div class="card" id="earnings-card">
+          <div class="card-header">
+            <span class="card-title">📊 Earnings History (Last 4Q)</span>
+            <span id="earnings-record-badge" class="dir-badge">—</span>
+          </div>
+          <div id="earnings-next-date" class="earnings-next-date">—</div>
+          <table class="data-table" style="margin-top:0.6rem">
+            <thead><tr><th>Quarter</th><th>Actual</th><th>Estimate</th><th>Surprise</th></tr></thead>
+            <tbody id="earnings-table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="card" id="analyst-card">
+          <div class="card-header">
+            <span class="card-title">🎯 Analyst Consensus</span>
+            <span id="analyst-consensus-badge" class="dir-badge">—</span>
+          </div>
+          <div id="analyst-target" class="analyst-target">—</div>
+          <div class="analyst-bar-wrap" id="analyst-bar-wrap">
+            <div id="analyst-bar-fill" class="analyst-bar-fill"></div>
+          </div>
+          <div id="analyst-bar-legend" class="analyst-bar-legend">—</div>
+          <table class="data-table" style="margin-top:0.75rem">
+            <tbody id="analyst-ratings-body"></tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- Stock: Insider Activity (stock only) -->
+      <div class="card stock-only" id="insider-card">
+        <div class="card-header">
+          <span class="card-title">🏛 Recent Insider Transactions</span>
+          <span id="insider-summary-badge" class="dir-badge">—</span>
+        </div>
+        <div id="insider-summary" class="insider-summary">—</div>
+        <table class="data-table" style="margin-top:0.75rem">
+          <thead><tr><th>Name / Title</th><th>Type</th><th>Shares</th><th>Price</th><th>Est. Value</th><th>Date</th></tr></thead>
+          <tbody id="insider-table-body"></tbody>
+        </table>
+      </div>
+
+      <!-- COT + Volatility Regime row (forex shows COT; always shows regime) -->
+      <div class="two-col" id="cot-regime-row">
+
+        <div class="card" id="cot-card" style="display:none">
+          <div class="card-header">
+            <span class="card-title">🏦 Institutional Positioning (COT)</span>
+            <span id="cot-dir-badge" class="dir-badge">—</span>
+          </div>
+          <div class="cot-net" id="cot-net">—</div>
+          <table class="data-table" style="margin-top:0.75rem">
+            <tbody>
+              <tr><td>Net Position</td><td class="qs-val" id="cot-net-val">—</td></tr>
+              <tr><td>Weekly Trend</td><td class="qs-val" id="cot-trend">—</td></tr>
+              <tr><td>Currency</td><td class="qs-val" id="cot-currency">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card" id="regime-card">
+          <div class="card-header">
+            <span class="card-title">📈 Volatility Regime</span>
+            <span id="regime-badge" class="regime-badge">—</span>
+          </div>
+          <div class="regime-label" id="regime-label">—</div>
+          <table class="data-table" style="margin-top:0.75rem">
+            <tbody>
+              <tr><td>ADX (14)</td><td class="qs-val" id="regime-adx">—</td></tr>
+              <tr><td>BB Width</td><td class="qs-val" id="regime-bb">—</td></tr>
+              <tr><td>BB Expanding</td><td class="qs-val" id="regime-expanding">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- Intermarket + Sentiment row (forex only) -->
+      <div class="two-col" id="inter-sent-row">
+
+        <div class="card" id="intermarket-card">
+          <div class="card-title">🌐 Intermarket (USD Strength)</div>
+          <div class="inter-dollar" id="inter-dollar">—</div>
+          <table class="data-table" style="margin-top:0.75rem;">
+            <tbody>
+              <tr><td>EUR/USD Trend</td><td class="qs-val" id="inter-eurusd">—</td></tr>
+              <tr><td>USD/JPY Trend</td><td class="qs-val" id="inter-usdjpy">—</td></tr>
+            </tbody>
+          </table>
+          <!-- Yield Differential -->
+          <div id="yield-diff-section" class="yield-diff-section" style="display:none">
+            <div class="yd-header">Yield Differential (US10Y vs DE10Y)</div>
+            <table class="data-table" style="margin-top:0.5rem">
+              <tbody>
+                <tr><td>US 10Y</td><td class="qs-val" id="yd-us10y">—</td></tr>
+                <tr><td>DE 10Y</td><td class="qs-val" id="yd-de10y">—</td></tr>
+                <tr><td>Spread</td><td class="qs-val" id="yd-diff">—</td></tr>
+              </tbody>
+            </table>
+            <div id="yd-label" class="yd-dir-label">—</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">📰 News Sentiment</div>
+          <div class="sent-score" id="sent-label">—</div>
+          <table class="data-table" style="margin-top:0.75rem;">
+            <tbody>
+              <tr><td>Score</td><td class="qs-val" id="sent-score">—</td></tr>
+              <tr><td>Articles Scanned</td><td class="qs-val" id="sent-articles">—</td></tr>
+            </tbody>
+          </table>
+          <!-- Top Headlines -->
+          <div id="sent-headlines" class="sent-headlines" style="display:none">
+            <div class="sh-header">Top Headlines</div>
+            <div id="sent-headlines-list"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Economic Calendar -->
+      <div class="card" id="events-section">
+        <div class="card-header">
+          <span class="card-title">📅 Upcoming Economic Events</span>
+          <span class="card-sub" id="events-count"></span>
+        </div>
+        <div id="events-container">
+          <table class="data-table events-table">
+            <thead>
+              <tr>
+                <th>Event</th><th>Country</th><th>Impact</th>
+                <th>Time (UTC)</th><th>Estimate</th><th>Actual</th>
+              </tr>
+            </thead>
+            <tbody id="events-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Data Providers Footer -->
+      <div class="card provider-footer">
+        <span class="pf-label">Data Sources:</span>
+        <span id="pf-data">—</span>
+        <span class="pf-sep">·</span>
+        <span class="pf-label">AI:</span>
+        <span id="pf-ai">—</span>
+        <span class="pf-sep">·</span>
+        <span class="pf-label">Generated:</span>
+        <span id="pf-time">—</span>
+      </div>
+
+    </div><!-- /results -->
+  </main>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

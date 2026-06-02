@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MarketLens Professional Market Research</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="landing-body">
+
+  <!-- Nav -->
+  <nav class="landing-nav">
+    <div class="nav-inner">
+      <div class="logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">MarketLens</span>
+      </div>
+      <div class="nav-links">
+        <a href="/research?tab=forex" class="nav-btn-ghost">Forex</a>
+        <a href="/research?tab=stock" class="nav-btn-ghost">Stocks</a>
+        <a href="/research" class="nav-btn-primary">Launch App →</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-glow"></div>
+    <div class="hero-content">
+      <div class="hero-badge">Live Market Intelligence</div>
+      <h1 class="hero-title">
+        Know the Market<br />
+        <span class="gradient-text">Before You Trade</span>
+      </h1>
+      <p class="hero-sub">
+        Multi-source technical analysis, AI-powered summaries, and real-time scoring
+        for Forex pairs and Stocks — all in one dashboard.
+      </p>
+      <div class="hero-actions">
+        <a href="/research?tab=forex" class="btn-primary-lg">
+          <span class="btn-icon">⬡</span> Analyze Forex
+        </a>
+        <a href="/research?tab=stock" class="btn-secondary-lg">
+          <span class="btn-icon">◎</span> Analyze Stocks
+        </a>
+      </div>
+      <p class="hero-note">No login required · Free APIs · Open source</p>
+    </div>
+
+    <!-- Floating mock score card -->
+    <div class="hero-card">
+      <div class="mock-card">
+        <div class="mock-header">
+          <span class="mock-pair">EUR / USD</span>
+          <span class="mock-badge up">↑ BULLISH</span>
+        </div>
+        <div class="mock-score-row">
+          <div class="mock-score-num">74</div>
+          <div class="mock-score-label">Alignment<br/>Score</div>
+        </div>
+        <div class="mock-divider"></div>
+        <div class="mock-stats">
+          <div class="mock-stat"><span class="msl">Daily RSI</span><span class="msv neutral">52.4</span></div>
+          <div class="mock-stat"><span class="msl">MACD</span><span class="msv up">Bullish</span></div>
+          <div class="mock-stat"><span class="msl">Trend</span><span class="msv up">↑ Up</span></div>
+          <div class="mock-stat"><span class="msl">Dollar</span><span class="msv down">Weakening</span></div>
+        </div>
+        <div class="mock-ai-label">◈ AI Summary</div>
+        <div class="mock-ai-text">EUR/USD shows moderate bullish alignment with MACD crossing above signal and dollar weakening pressure supporting upside...</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features">
+    <div class="features-inner">
+      <h2 class="section-title">Everything You Need to Read the Market</h2>
+      <p class="section-sub">Four independent research layers combined into one unified score</p>
+      <div class="feature-grid">
+
+        <div class="feature-card">
+          <div class="feat-icon" style="background:#1e3a5f;">📊</div>
+          <h3>Multi-Timeframe Technical</h3>
+          <p>RSI, MACD, Moving Averages, ATR volatility, Support & Resistance — computed independently on both hourly and daily candles.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feat-icon" style="background:#1a3a2e;">🌐</div>
+          <h3>Intermarket Analysis</h3>
+          <p>USD Dollar strength proxy via EUR/USD and USD/JPY correlation, giving you the macro currency flow picture for forex pairs.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feat-icon" style="background:#3a1a2e;">🤖</div>
+          <h3>AI-Powered Summary</h3>
+          <p>Gemini, Groq (Llama 3.3), OpenAI, or Claude — whichever is configured — generates a human-readable analyst brief with automatic fallback.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feat-icon" style="background:#2e2a1a;">📰</div>
+          <h3>News Sentiment</h3>
+          <p>Recent article sentiment scoring from Alpha Vantage, quantified and weighted into the overall alignment score.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feat-icon" style="background:#1a1a3a;">📅</div>
+          <h3>Economic Calendar</h3>
+          <p>Upcoming high and medium impact economic events from Finnhub — so you know when signal clarity might be disrupted.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feat-icon" style="background:#2a1a1a;">🔄</div>
+          <h3>Multi-Source Fallback</h3>
+          <p>Data pulls from Twelve Data → Alpha Vantage → Yahoo Finance → Polygon.io in order, so you always get data even if one API is down.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="how-it-works">
+    <div class="hiw-inner">
+      <h2 class="section-title">How the Score Works</h2>
+      <div class="score-breakdown-grid">
+        <div class="sb-item">
+          <div class="sb-bar" style="width:30%"></div>
+          <div class="sb-info">
+            <span class="sb-name">Daily Technical</span>
+            <span class="sb-pts">30 pts</span>
+          </div>
+        </div>
+        <div class="sb-item">
+          <div class="sb-bar" style="width:25%"></div>
+          <div class="sb-info">
+            <span class="sb-name">Hourly Technical</span>
+            <span class="sb-pts">25 pts</span>
+          </div>
+        </div>
+        <div class="sb-item">
+          <div class="sb-bar" style="width:20%; background: var(--purple)"></div>
+          <div class="sb-info">
+            <span class="sb-name">Intermarket (Forex only)</span>
+            <span class="sb-pts">20 pts</span>
+          </div>
+        </div>
+        <div class="sb-item">
+          <div class="sb-bar" style="width:15%; background: var(--amber)"></div>
+          <div class="sb-info">
+            <span class="sb-name">News Sentiment</span>
+            <span class="sb-pts">15 pts</span>
+          </div>
+        </div>
+        <div class="sb-item">
+          <div class="sb-bar" style="width:10%; background: var(--muted)"></div>
+          <div class="sb-info">
+            <span class="sb-name">Event Clarity</span>
+            <span class="sb-pts">10 pts</span>
+          </div>
+        </div>
+      </div>
+      <p class="hiw-note">Score = how aligned the signals are, NOT a win probability. Higher alignment means signals agree. Always manage risk.</p>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="cta-inner">
+      <h2>Start Analyzing Now</h2>
+      <p>Pick a currency pair or stock ticker and get your research in seconds.</p>
+      <div class="cta-buttons">
+        <a href="/research?tab=forex" class="btn-primary-lg">Analyze Forex →</a>
+        <a href="/research?tab=stock" class="btn-secondary-lg">Analyze Stocks →</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="landing-footer">
+    <div class="footer-inner">
+      <span class="logo-text" style="font-size:1rem;">◈ MarketLens</span>
+      <span class="footer-note">Research tool only. Not financial advice.</span>
+    </div>
+  </footer>
+
+</body>
+</html>
