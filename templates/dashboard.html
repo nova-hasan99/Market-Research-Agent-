@@ -103,7 +103,8 @@
             </td>
             <td class="col-price">{{ a.last_price or '-' }}</td>
             <td class="col-actions">
-              <button class="tb-btn tb-view" onclick="window.open('/dashboard/view/{{ a.id }}','_blank')">View</button>
+              <button class="tb-btn tb-view" onclick="viewAnalysis('{{ a.id }}','{{ a.asset }}',{{ a.score if a.score is not none else 0 }})">View</button>
+              <button class="tb-btn tb-delete" onclick="deleteOneAnalysis('{{ a.id }}')">Delete</button>
             </td>
           </tr>
           {% endfor %}
@@ -147,7 +148,8 @@
             </td>
             <td class="col-price">{{ a.last_price or '-' }}</td>
             <td class="col-actions">
-              <button class="tb-btn tb-view" onclick="window.open('/dashboard/view/{{ a.id }}','_blank')">View</button>
+              <button class="tb-btn tb-view" onclick="viewAnalysis('{{ a.id }}','{{ a.asset }}',{{ a.score if a.score is not none else 0 }})">View</button>
+              <button class="tb-btn tb-delete" onclick="deleteOneAnalysis('{{ a.id }}')">Delete</button>
             </td>
           </tr>
           {% endfor %}
@@ -188,34 +190,38 @@
 
 </main>
 
-<!-- View Modal -->
+<!-- View Modal (iframe-based, full-screen) -->
 <div id="view-modal" class="modal-overlay hidden" onclick="closeViewModal(event)">
   <div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-header">
       <span class="modal-title" id="modal-title">Analysis Detail</span>
-      <button class="modal-close" onclick="closeViewModal()">x</button>
+      <button class="modal-close" onclick="closeViewModal()">&times;</button>
     </div>
-    <div class="modal-body" id="modal-body">
-      <!-- renderResults() target elements are injected here -->
+    <div class="modal-iframe-wrap">
+      <iframe id="view-iframe" class="modal-iframe" title="Analysis Detail"></iframe>
     </div>
   </div>
 </div>
 
-<!-- Compare Modal -->
+<!-- Compare Modal (two iframes, full-screen) -->
 <div id="compare-modal" class="modal-overlay hidden" onclick="closeCompareModal(event)">
   <div class="compare-box" onclick="event.stopPropagation()">
     <div class="compare-header">
       <span class="modal-title">Side-by-Side Comparison</span>
-      <button class="modal-close" onclick="closeCompareModal()">x</button>
+      <button class="modal-close" onclick="closeCompareModal()">&times;</button>
     </div>
     <div class="compare-grid">
-      <div class="compare-panel" id="compare-left">
+      <div class="compare-panel">
         <div class="compare-panel-title" id="compare-left-title">-</div>
-        <div class="compare-panel-body" id="compare-left-body"></div>
+        <div class="compare-panel-body">
+          <iframe id="compare-left-iframe" class="modal-iframe" title="Analysis A"></iframe>
+        </div>
       </div>
-      <div class="compare-panel" id="compare-right">
+      <div class="compare-panel">
         <div class="compare-panel-title" id="compare-right-title">-</div>
-        <div class="compare-panel-body" id="compare-right-body"></div>
+        <div class="compare-panel-body">
+          <iframe id="compare-right-iframe" class="modal-iframe" title="Analysis B"></iframe>
+        </div>
       </div>
     </div>
   </div>

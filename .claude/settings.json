@@ -51,7 +51,8 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\('app/config.py'\\).read\\(\\)\\); ast.parse\\(open\\('scripts/setup_db.py'\\).read\\(\\)\\); print\\('Both OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('scripts/setup_db.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
       "Bash(node --check static/js/app.js)",
-      "Bash(node --check static/js/dashboard.js)"
+      "Bash(node --check static/js/dashboard.js)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app/routes_dashboard.py'\\).read\\(\\)\\); print\\('routes_dashboard.py OK'\\)\")"
     ]
   }
 }

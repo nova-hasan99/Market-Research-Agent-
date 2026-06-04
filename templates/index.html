@@ -3,14 +3,127 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MarketLens Professional Market Research</title>
+  <title>MarketLens: AI-Powered Market Research Platform</title>
   <link rel="stylesheet" href="/static/css/style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* Landing Page Styles */
+    .landing-body { background: linear-gradient(135deg, #060b14 0%, #0a1420 50%, #0d1a2e 100%); }
+
+    /* Hero Section */
+    .hero { position: relative; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 3rem 1.5rem; overflow: hidden; }
+    .hero-glow { position: absolute; inset: 0; background: radial-gradient(circle at 30% 50%, rgba(59, 130, 246, 0.15) 0%, transparent 50%), radial-gradient(circle at 70% 50%, rgba(34, 197, 94, 0.1) 0%, transparent 50%); pointer-events: none; }
+    .hero-content { position: relative; z-index: 2; max-width: 1000px; margin: 0 auto; text-align: center; }
+    .hero-badge { display: inline-block; padding: 0.6rem 1.2rem; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 50px; font-size: 0.85rem; font-weight: 600; color: #3b82f6; margin-bottom: 1.5rem; }
+    .hero-title { font-size: clamp(2.5rem, 8vw, 4.5rem); font-weight: 800; line-height: 1.2; color: #f9fafb; margin-bottom: 1rem; }
+    .gradient-text { background: linear-gradient(135deg, #3b82f6 0%, #10b981 50%, #f59e0b 100%); background-clip: text; color: transparent; }
+    .hero-sub { font-size: 1.1rem; color: #d1d5db; max-width: 600px; margin: 2rem auto; line-height: 1.8; }
+    .hero-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin: 3rem 0; }
+    .btn-primary-lg, .btn-secondary-lg { padding: 1rem 2rem; border-radius: 10px; font-weight: 600; text-decoration: none; transition: all 0.3s; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 1rem; }
+    .btn-primary-lg { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3); }
+    .btn-primary-lg:hover { transform: translateY(-3px); box-shadow: 0 15px 40px rgba(59, 130, 246, 0.4); }
+    .btn-secondary-lg { background: rgba(10, 20, 32, 0.8); border: 2px solid #3b82f6; color: #3b82f6; }
+    .btn-secondary-lg:hover { background: rgba(59, 130, 246, 0.1); }
+    .btn-icon { font-size: 1.2rem; }
+    .hero-note { font-size: 0.9rem; color: #6b7280; margin-top: 2rem; }
+
+    /* Hero Card */
+    .hero-card { position: relative; z-index: 1; margin-top: 4rem; perspective: 1000px; }
+    .mock-card { background: linear-gradient(135deg, rgba(15, 28, 45, 0.9), rgba(20, 35, 55, 0.9)); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 16px; padding: 2rem; max-width: 500px; margin: 0 auto; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5); backdrop-filter: blur(10px); animation: float 4s ease-in-out infinite; }
+    @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }
+    .mock-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .mock-pair { font-size: 1.3rem; font-weight: 700; color: #f9fafb; }
+    .mock-badge { padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; }
+    .mock-badge.up { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .mock-score-row { display: flex; gap: 1.5rem; align-items: center; margin-bottom: 1.5rem; padding: 1.5rem; background: rgba(59, 130, 246, 0.05); border-radius: 12px; }
+    .mock-score-num { font-size: 3rem; font-weight: 800; background: linear-gradient(135deg, #3b82f6, #10b981); background-clip: text; color: transparent; }
+    .mock-score-label { color: #9ca3af; font-size: 0.9rem; line-height: 1.4; }
+    .mock-divider { height: 1px; background: rgba(75, 85, 99, 0.3); margin: 1.5rem 0; }
+    .mock-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+    .mock-stat { display: flex; justify-content: space-between; font-size: 0.9rem; }
+    .msl { color: #9ca3af; }
+    .msv { font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; }
+    .msv.up { color: #10b981; }
+    .msv.down { color: #ef4444; }
+    .msv.neutral { color: #f59e0b; }
+    .mock-ai-label { font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem; font-weight: 600; }
+    .mock-ai-text { font-size: 0.85rem; color: #d1d5db; line-height: 1.6; }
+
+    /* Trading Candle Visualization */
+    .candle-chart { width: 100%; height: 300px; margin: 3rem 0; }
+    .candles-container { display: flex; align-items: flex-end; justify-content: center; gap: 0.5rem; height: 100%; padding: 1rem; background: rgba(15, 23, 42, 0.6); border-radius: 16px; border: 1px solid rgba(59, 130, 246, 0.1); }
+    .candle { position: relative; width: 30px; }
+    .candle-body { margin: 0 auto; background: #10b981; border-radius: 2px; position: relative; }
+    .candle.down .candle-body { background: #ef4444; }
+    .candle-wick { position: absolute; left: 50%; width: 2px; background: currentColor; transform: translateX(-50%); }
+    .candle.down { color: #ef4444; }
+    .candle { color: #10b981; }
+
+    /* Features Section */
+    .features { padding: 5rem 1.5rem; background: rgba(6, 11, 20, 0.8); }
+    .features-inner { max-width: 1200px; margin: 0 auto; }
+    .section-title { font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; color: #f9fafb; text-align: center; margin-bottom: 1rem; }
+    .section-sub { text-align: center; color: #9ca3af; font-size: 1.1rem; margin-bottom: 3rem; max-width: 600px; margin-left: auto; margin-right: auto; }
+    .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem; }
+    .feature-card { background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(20, 30, 48, 0.9)); border: 1px solid rgba(59, 130, 246, 0.15); border-radius: 16px; padding: 2rem; transition: all 0.3s; }
+    .feature-card:hover { transform: translateY(-5px); border-color: rgba(59, 130, 246, 0.3); box-shadow: 0 20px 50px rgba(59, 130, 246, 0.1); }
+    .feat-icon { width: 60px; height: 60px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 2rem; margin-bottom: 1rem; }
+    .feature-card h3 { font-size: 1.3rem; font-weight: 700; color: #f9fafb; margin-bottom: 0.8rem; }
+    .feature-card p { color: #d1d5db; line-height: 1.7; font-size: 0.95rem; }
+
+    /* Market Showcase */
+    .showcase { padding: 5rem 1.5rem; background: linear-gradient(135deg, rgba(6, 11, 20, 0.9), rgba(15, 23, 42, 0.9)); }
+    .showcase-inner { max-width: 1200px; margin: 0 auto; }
+    .showcase-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; margin-top: 3rem; }
+    .showcase-text h3 { font-size: 1.8rem; font-weight: 700; color: #f9fafb; margin-bottom: 1.5rem; }
+    .showcase-text p { color: #d1d5db; line-height: 1.8; margin-bottom: 1.2rem; font-size: 1rem; }
+    .showcase-list { list-style: none; padding: 0; margin: 2rem 0; }
+    .showcase-list li { padding: 0.8rem 0; color: #d1d5db; display: flex; align-items: center; gap: 0.8rem; }
+    .showcase-list li:before { content: "✓"; color: #10b981; font-weight: 700; font-size: 1.2rem; }
+    .showcase-visual { background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(34, 197, 94, 0.05)); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 16px; padding: 2rem; display: flex; align-items: center; justify-content: center; min-height: 400px; }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .stat-box { background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(59, 130, 246, 0.15); border-radius: 12px; padding: 1.5rem; text-align: center; }
+    .stat-num { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, #3b82f6, #10b981); background-clip: text; color: transparent; }
+    .stat-label { color: #9ca3af; font-size: 0.9rem; margin-top: 0.5rem; }
+
+    /* How It Works */
+    .how-it-works { padding: 5rem 1.5rem; background: rgba(6, 11, 20, 0.8); }
+    .hiw-inner { max-width: 1000px; margin: 0 auto; }
+    .score-breakdown-grid { display: grid; gap: 1.5rem; margin: 3rem 0; }
+    .sb-item { display: flex; align-items: center; gap: 1.5rem; }
+    .sb-bar { height: 40px; background: linear-gradient(90deg, #3b82f6, #2563eb); border-radius: 6px; min-width: 50px; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2); }
+    .sb-info { display: flex; flex-direction: column; }
+    .sb-name { color: #f9fafb; font-weight: 600; }
+    .sb-pts { color: #9ca3af; font-size: 0.9rem; }
+    .hiw-note { color: #9ca3af; text-align: center; margin-top: 3rem; font-size: 0.95rem; line-height: 1.7; max-width: 700px; margin-left: auto; margin-right: auto; }
+
+    /* CTA Section */
+    .cta-section { padding: 4rem 1.5rem; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1e40af 100%); text-align: center; }
+    .cta-inner { max-width: 700px; margin: 0 auto; }
+    .cta-section h2 { font-size: 2.5rem; font-weight: 800; color: white; margin-bottom: 1rem; }
+    .cta-section p { font-size: 1.1rem; color: rgba(255, 255, 255, 0.9); margin-bottom: 2rem; }
+    .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+    /* Footer */
+    .landing-footer { padding: 2rem 1.5rem; background: rgba(6, 11, 20, 0.95); border-top: 1px solid rgba(59, 130, 246, 0.1); text-align: center; }
+    .footer-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: center; gap: 2rem; flex-wrap: wrap; }
+    .footer-note { color: #6b7280; font-size: 0.9rem; }
+    .logo-text { color: #f9fafb; font-weight: 700; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero { min-height: auto; padding: 2rem 1rem; }
+      .hero-title { font-size: 2rem; }
+      .showcase-grid { grid-template-columns: 1fr; }
+      .showcase-visual { min-height: 300px; }
+      .footer-inner { flex-direction: column; gap: 1rem; }
+      .stats-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body class="landing-body">
 
-  <!-- Nav -->
+  <!-- Navigation -->
   <nav class="landing-nav">
     <div class="nav-inner">
       <div class="logo">
@@ -20,167 +133,216 @@
       <div class="nav-links">
         <a href="/research?tab=forex" class="nav-btn-ghost">Forex</a>
         <a href="/research?tab=stock" class="nav-btn-ghost">Stocks</a>
-        <a href="/research" class="nav-btn-primary">Launch App →</a>
+        <a href="/research" class="nav-btn-primary">Launch App</a>
       </div>
     </div>
   </nav>
 
-  <!-- Hero -->
+  <!-- Hero Section -->
   <section class="hero">
     <div class="hero-glow"></div>
     <div class="hero-content">
-      <div class="hero-badge">Live Market Intelligence</div>
+      <div class="hero-badge">✨ AI-Powered Market Research</div>
       <h1 class="hero-title">
-        Know the Market<br />
-        <span class="gradient-text">Before You Trade</span>
+        Master the Market<br/>
+        <span class="gradient-text">With Intelligent Analysis</span>
       </h1>
       <p class="hero-sub">
-        Multi-source technical analysis, AI-powered summaries, and real-time scoring
-        for Forex pairs and Stocks — all in one dashboard.
+        Real-time technical analysis, AI summaries, and scoring for Forex pairs and stocks.
+        Get actionable insights in seconds, not hours.
       </p>
+
+      <!-- Trading Candles Animation -->
+      <div class="candle-chart">
+        <div class="candles-container">
+          <div class="candle" style="height: 40%;"><div class="candle-body" style="height: 60%; width: 20px;"></div><div class="candle-wick" style="height: 30%; top: 0;"></div></div>
+          <div class="candle down" style="height: 35%;"><div class="candle-body" style="height: 70%; width: 20px;"></div><div class="candle-wick" style="height: 40%; top: 0;"></div></div>
+          <div class="candle" style="height: 55%;"><div class="candle-body" style="height: 50%; width: 20px;"></div><div class="candle-wick" style="height: 35%; top: 0;"></div></div>
+          <div class="candle" style="height: 60%;"><div class="candle-body" style="height: 45%; width: 20px;"></div><div class="candle-wick" style="height: 40%; top: 0;"></div></div>
+          <div class="candle down" style="height: 45%;"><div class="candle-body" style="height: 55%; width: 20px;"></div><div class="candle-wick" style="height: 35%; top: 0;"></div></div>
+          <div class="candle" style="height: 65%;"><div class="candle-body" style="height: 40%; width: 20px;"></div><div class="candle-wick" style="height: 45%; top: 0;"></div></div>
+          <div class="candle" style="height: 70%;"><div class="candle-body" style="height: 50%; width: 20px;"></div><div class="candle-wick" style="height: 40%; top: 0;"></div></div>
+        </div>
+      </div>
+
       <div class="hero-actions">
         <a href="/research?tab=forex" class="btn-primary-lg">
-          <span class="btn-icon">⬡</span> Analyze Forex
+          <span class="btn-icon">📈</span> Analyze Forex
         </a>
         <a href="/research?tab=stock" class="btn-secondary-lg">
-          <span class="btn-icon">◎</span> Analyze Stocks
+          <span class="btn-icon">💹</span> Analyze Stocks
         </a>
       </div>
-      <p class="hero-note">No login required · Free APIs · Open source</p>
+      <p class="hero-note">Instant analysis, multi-source data, AI powered</p>
     </div>
 
-    <!-- Floating mock score card -->
+    <!-- Mock Analysis Card -->
     <div class="hero-card">
       <div class="mock-card">
         <div class="mock-header">
-          <span class="mock-pair">EUR / USD</span>
-          <span class="mock-badge up">↑ BULLISH</span>
+          <span class="mock-pair">EUR/USD</span>
+          <span class="mock-badge up">↑ Bullish</span>
         </div>
         <div class="mock-score-row">
-          <div class="mock-score-num">74</div>
+          <div class="mock-score-num">84</div>
           <div class="mock-score-label">Alignment<br/>Score</div>
         </div>
         <div class="mock-divider"></div>
         <div class="mock-stats">
           <div class="mock-stat"><span class="msl">Daily RSI</span><span class="msv neutral">52.4</span></div>
           <div class="mock-stat"><span class="msl">MACD</span><span class="msv up">Bullish</span></div>
-          <div class="mock-stat"><span class="msl">Trend</span><span class="msv up">↑ Up</span></div>
+          <div class="mock-stat"><span class="msl">Trend</span><span class="msv up">Up</span></div>
           <div class="mock-stat"><span class="msl">Dollar</span><span class="msv down">Weakening</span></div>
         </div>
-        <div class="mock-ai-label">◈ AI Summary</div>
-        <div class="mock-ai-text">EUR/USD shows moderate bullish alignment with MACD crossing above signal and dollar weakening pressure supporting upside...</div>
+        <div class="mock-ai-label">◈ AI Analysis</div>
+        <div class="mock-ai-text">EUR/USD displays strong bullish alignment with MACD confirmation and technical indicators supporting upside momentum into key resistance...</div>
       </div>
     </div>
   </section>
 
-  <!-- Features -->
+  <!-- Features Section -->
   <section class="features">
     <div class="features-inner">
-      <h2 class="section-title">Everything You Need to Read the Market</h2>
-      <p class="section-sub">Four independent research layers combined into one unified score</p>
+      <h2 class="section-title">Powerful Analysis Tools</h2>
+      <p class="section-sub">Six research layers combined into one unified score</p>
       <div class="feature-grid">
-
         <div class="feature-card">
-          <div class="feat-icon" style="background:#1e3a5f;">📊</div>
+          <div class="feat-icon" style="background:linear-gradient(135deg, #1e3a5f, #2563eb);">📊</div>
           <h3>Multi-Timeframe Technical</h3>
-          <p>RSI, MACD, Moving Averages, ATR volatility, Support & Resistance — computed independently on both hourly and daily candles.</p>
+          <p>RSI, MACD, Moving Averages, ATR volatility on hourly and daily timeframes for complete technical picture.</p>
         </div>
-
         <div class="feature-card">
-          <div class="feat-icon" style="background:#1a3a2e;">🌐</div>
+          <div class="feat-icon" style="background:linear-gradient(135deg, #1a3a2e, #10b981);">🌐</div>
           <h3>Intermarket Analysis</h3>
-          <p>USD Dollar strength proxy via EUR/USD and USD/JPY correlation, giving you the macro currency flow picture for forex pairs.</p>
+          <p>USD Dollar strength tracking and currency correlation analysis for forex pairs and macro currency flows.</p>
         </div>
-
         <div class="feature-card">
-          <div class="feat-icon" style="background:#3a1a2e;">🤖</div>
-          <h3>AI-Powered Summary</h3>
-          <p>Gemini, Groq (Llama 3.3), OpenAI, or Claude — whichever is configured — generates a human-readable analyst brief with automatic fallback.</p>
+          <div class="feat-icon" style="background:linear-gradient(135deg, #3a1a2e, #a855f7);">🤖</div>
+          <h3>AI Market Summary</h3>
+          <p>Gemini, Groq, OpenAI, or Claude generate human-readable analyst briefs with automatic fallback.</p>
         </div>
-
         <div class="feature-card">
-          <div class="feat-icon" style="background:#2e2a1a;">📰</div>
+          <div class="feat-icon" style="background:linear-gradient(135deg, #2e2a1a, #f59e0b);">📰</div>
           <h3>News Sentiment</h3>
-          <p>Recent article sentiment scoring from Alpha Vantage, quantified and weighted into the overall alignment score.</p>
+          <p>Real-time sentiment scoring from financial news sources weighted into overall alignment calculation.</p>
         </div>
-
         <div class="feature-card">
-          <div class="feat-icon" style="background:#1a1a3a;">📅</div>
+          <div class="feat-icon" style="background:linear-gradient(135deg, #1a1a3a, #3b82f6);">📅</div>
           <h3>Economic Calendar</h3>
-          <p>Upcoming high and medium impact economic events from Finnhub — so you know when signal clarity might be disrupted.</p>
+          <p>High and medium impact economic events tracked so you know when signal clarity might shift.</p>
         </div>
-
         <div class="feature-card">
-          <div class="feat-icon" style="background:#2a1a1a;">🔄</div>
+          <div class="feat-icon" style="background:linear-gradient(135deg, #2a1a1a, #ef4444);">🔄</div>
           <h3>Multi-Source Fallback</h3>
-          <p>Data pulls from Twelve Data → Alpha Vantage → Yahoo Finance → Polygon.io in order, so you always get data even if one API is down.</p>
+          <p>Data from Twelve Data, Alpha Vantage, Yahoo Finance, and Polygon with automatic fallback.</p>
         </div>
-
       </div>
     </div>
   </section>
 
-  <!-- How it works -->
+  <!-- Market Showcase -->
+  <section class="showcase">
+    <div class="showcase-inner">
+      <h2 class="section-title">Why Traders Choose MarketLens</h2>
+      <div class="showcase-grid">
+        <div class="showcase-text">
+          <h3>Eliminate Guesswork From Trading</h3>
+          <p>Stop relying on scattered indicators and competing narratives. MarketLens consolidates technical analysis, intermarket data, AI summaries, and news sentiment into a single, unified alignment score that shows you exactly where the signals agree.</p>
+          <ul class="showcase-list">
+            <li>Alignment Score shows signal agreement level</li>
+            <li>AI Summary explains the market picture</li>
+            <li>Support and resistance levels automatically calculated</li>
+            <li>Trade guidance with confidence levels</li>
+            <li>Save and compare analyses over time</li>
+          </ul>
+        </div>
+        <div class="showcase-visual">
+          <div class="stats-grid">
+            <div class="stat-box">
+              <div class="stat-num">4+</div>
+              <div class="stat-label">Data Sources</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num">6</div>
+              <div class="stat-label">Analysis Layers</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num">2</div>
+              <div class="stat-label">Timeframes</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num">100%</div>
+              <div class="stat-label">Uptime</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
   <section class="how-it-works">
     <div class="hiw-inner">
       <h2 class="section-title">How the Score Works</h2>
+      <p class="section-sub">Six independent signals combined into your alignment score</p>
       <div class="score-breakdown-grid">
         <div class="sb-item">
-          <div class="sb-bar" style="width:30%"></div>
+          <div class="sb-bar" style="width:30%; background: linear-gradient(90deg, #3b82f6, #2563eb);"></div>
           <div class="sb-info">
-            <span class="sb-name">Daily Technical</span>
-            <span class="sb-pts">30 pts</span>
+            <span class="sb-name">Daily Technical Analysis</span>
+            <span class="sb-pts">30 points</span>
           </div>
         </div>
         <div class="sb-item">
-          <div class="sb-bar" style="width:25%"></div>
+          <div class="sb-bar" style="width:25%; background: linear-gradient(90deg, #10b981, #059669);"></div>
           <div class="sb-info">
-            <span class="sb-name">Hourly Technical</span>
-            <span class="sb-pts">25 pts</span>
+            <span class="sb-name">Hourly Technical Analysis</span>
+            <span class="sb-pts">25 points</span>
           </div>
         </div>
         <div class="sb-item">
-          <div class="sb-bar" style="width:20%; background: var(--purple)"></div>
+          <div class="sb-bar" style="width:20%; background: linear-gradient(90deg, #a855f7, #9333ea);"></div>
           <div class="sb-info">
-            <span class="sb-name">Intermarket (Forex only)</span>
-            <span class="sb-pts">20 pts</span>
+            <span class="sb-name">Intermarket Analysis (Forex only)</span>
+            <span class="sb-pts">20 points</span>
           </div>
         </div>
         <div class="sb-item">
-          <div class="sb-bar" style="width:15%; background: var(--amber)"></div>
+          <div class="sb-bar" style="width:15%; background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
           <div class="sb-info">
             <span class="sb-name">News Sentiment</span>
-            <span class="sb-pts">15 pts</span>
+            <span class="sb-pts">15 points</span>
           </div>
         </div>
         <div class="sb-item">
-          <div class="sb-bar" style="width:10%; background: var(--muted)"></div>
+          <div class="sb-bar" style="width:10%; background: linear-gradient(90deg, #6b7280, #4b5563);"></div>
           <div class="sb-info">
             <span class="sb-name">Event Clarity</span>
-            <span class="sb-pts">10 pts</span>
+            <span class="sb-pts">10 points</span>
           </div>
         </div>
       </div>
-      <p class="hiw-note">Score = how aligned the signals are, NOT a win probability. Higher alignment means signals agree. Always manage risk.</p>
+      <p class="hiw-note">Alignment Score measures how much your signals agree. A higher score means indicators are coordinated. Always manage your own risk and use professional risk management techniques. This is a research tool, not financial advice.</p>
     </div>
   </section>
 
-  <!-- CTA -->
+  <!-- CTA Section -->
   <section class="cta-section">
     <div class="cta-inner">
-      <h2>Start Analyzing Now</h2>
-      <p>Pick a currency pair or stock ticker and get your research in seconds.</p>
+      <h2>Ready to Analyze?</h2>
+      <p>Get a complete market analysis with AI summary in just seconds.</p>
       <div class="cta-buttons">
-        <a href="/research?tab=forex" class="btn-primary-lg">Analyze Forex →</a>
-        <a href="/research?tab=stock" class="btn-secondary-lg">Analyze Stocks →</a>
+        <a href="/research?tab=forex" class="btn-primary-lg" style="background: white; color: #2563eb;">Start with Forex</a>
+        <a href="/research?tab=stock" class="btn-secondary-lg" style="background: rgba(255,255,255,0.1); border-color: white; color: white;">Start with Stocks</a>
       </div>
     </div>
   </section>
 
+  <!-- Footer -->
   <footer class="landing-footer">
     <div class="footer-inner">
-      <span class="logo-text" style="font-size:1rem;">◈ MarketLens</span>
-      <span class="footer-note">Research tool only. Not financial advice.</span>
+      <span class="logo-text">◈ MarketLens</span>
+      <span class="footer-note">Research platform for educational purposes. Not financial advice.</span>
     </div>
   </footer>
 

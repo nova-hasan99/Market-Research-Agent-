@@ -16,6 +16,9 @@
     .av-back:hover { color:var(--text); }
     .av-meta { font-size:0.8rem; color:var(--muted); }
     .av-main { max-width:1100px; margin:0 auto; padding:1.5rem; }
+    /* When embedded in the dashboard modal iframe, hide the standalone nav */
+    body.embedded .av-nav { display:none; }
+    body.embedded .av-main { padding:1rem 1.25rem; }
   </style>
 </head>
 <body class="app-body">
@@ -400,6 +403,10 @@
 <!-- Embed saved analysis data and render on load -->
 <script>
   var __ANALYSIS_DATA__ = {{ analysis_data_json | safe }};
+  // Hide the standalone nav when shown inside the dashboard modal iframe
+  if (new URLSearchParams(location.search).get('embed') === '1' || window.self !== window.top) {
+    document.body.classList.add('embedded');
+  }
 </script>
 <script src="/static/js/app.js"></script>
 <script>
