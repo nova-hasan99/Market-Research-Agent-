@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - MarketLens</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="stylesheet" href="/static/css/dashboard.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="app-body">
+
+<!-- Navbar -->
+<nav class="app-nav db-nav">
+  <div class="nav-inner">
+    <a href="/" class="logo">
+      <span class="logo-icon">◈</span>
+      <span class="logo-text">MarketLens</span>
+    </a>
+    <div class="nav-links">
+      <a href="/research" class="nav-btn-ghost">Research</a>
+      {% if user and user.is_admin %}
+      <button class="nav-btn-ghost" onclick="toggleAdminPanel()">Admin Panel</button>
+      {% endif %}
+      <span class="user-pill">
+        <span class="user-dot"></span>
+        {{ user.name if user else 'User' }}
+      </span>
+      <a href="/logout" class="nav-btn-ghost">Logout</a>
+    </div>
+  </div>
+</nav>
+
+<main class="db-main">
+
+  <!-- Auto-delete warning -->
+  <div class="auto-delete-banner">
+    Analyses auto-delete after 15 are saved per type. Export important analyses to keep them.
+  </div>
+
+  <!-- Tab switcher -->
+  <div class="db-tab-bar">
+    <button id="tab-forex" class="db-tab active" onclick="dbSwitchTab('forex')">Forex Analyses</button>
+    <button id="tab-stock" class="db-tab" onclick="dbSwitchTab('stock')">Stock Analyses</button>
+  </div>
+
+  <!-- Toolbar (appears when rows are selected) -->
+  <div class="db-toolbar hidden" id="db-toolbar">
+    <span class="toolbar-count" id="toolbar-count">0 selected</span>
+    <div class="toolbar-actions">
+      <button class="tb-btn tb-delete" onclick="deleteSelected()">Delete Selected</button>
+      <button class="tb-btn tb-compare" id="btn-compare" onclick="compareSelected()" disabled>Compare 2</button>
+      <div class="tb-export-wrap">
+        <button class="tb-btn tb-export" onclick="toggleExportDrop(this)">Export Selected ▾</button>
+        <div class="tb-drop hidden">
+          <div class="tb-drop-item" onclick="exportSelected('csv')">CSV</div>
+          <div class="tb-drop-item" onclick="exportSelected('xlsx')">XLSX</div>
+          <div class="tb-drop-item" onclick="exportSelectedPDF()">PDF (Print)</div>
+        </div>
+      </div>
+    </div>
+    <div class="toolbar-right">
+      <div class="tb-export-wrap">
+        <button class="tb-btn" onclick="toggleExportDrop(this)">Export All ▾</button>
+        <div class="tb-drop hidden">
+          <div class="tb-drop-item" onclick="exportAll('csv')">CSV</div>
+          <div class="tb-drop-item" onclick="exportAll('xlsx')">XLSX</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Forex tab content -->
+  <div id="panel-forex" class="db-panel">
+    <table class="db-table">
+      <thead>
+        <tr>
+          <th class="col-check"><input type="checkbox" id="check-all-forex" onchange="toggleSelectAll('forex', this.checked)" /></th>
+          <th>Date / Time</th>
+          <th>Asset</th>
+          <th>Score</th>
+          <th>Bias</th>
+          <th>Last Price</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-forex">
+        {% if forex_analyses %}
+          {% for a in forex_analyses %}
+          <tr data-id="{{ a.id }}" data-type="forex">
+            <td class="col-check"><input type="checkbox" class="row-check" onchange="onRowCheck()" /></td>
+            <td class="col-date">{{ a.created_at[:16] | replace('T', ' ') if a.created_at else '-' }}</td>
+            <td class="col-asset"><strong>{{ a.asset }}</strong></td>
+            <td class="col-score">
+              <span class="score-badge {% if a.score >= 70 %}score-up{% elif a.score >= 50 %}score-amber{% else %}score-down{% endif %}">
+                {{ a.score if a.score is not none else '-' }}
+              </span>
+            </td>
+            <td class="col-bias">
+              <span class="bias-mini {% if a.bias == 'up' %}up{% elif a.bias == 'down' %}down{% else %}neutral{% endif %}">
+                {% if a.bias == 'up' %}Bullish{% elif a.bias == 'down' %}Bearish{% else %}Unclear{% endif %}
+              </span>
+            </td>
+            <td class="col-price">{{ a.last_price or '-' }}</td>
+            <td class="col-actions">
+              <button class="tb-btn tb-view" onclick="window.open('/dashboard/view/{{ a.id }}','_blank')">View</button>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="7" class="empty-row">No forex analyses saved yet. Run an analysis on the research page.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Stock tab content -->
+  <div id="panel-stock" class="db-panel hidden">
+    <table class="db-table">
+      <thead>
+        <tr>
+          <th class="col-check"><input type="checkbox" id="check-all-stock" onchange="toggleSelectAll('stock', this.checked)" /></th>
+          <th>Date / Time</th>
+          <th>Asset</th>
+          <th>Score</th>
+          <th>Bias</th>
+          <th>Last Price</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-stock">
+        {% if stock_analyses %}
+          {% for a in stock_analyses %}
+          <tr data-id="{{ a.id }}" data-type="stock">
+            <td class="col-check"><input type="checkbox" class="row-check" onchange="onRowCheck()" /></td>
+            <td class="col-date">{{ a.created_at[:16] | replace('T', ' ') if a.created_at else '-' }}</td>
+            <td class="col-asset"><strong>{{ a.asset }}</strong></td>
+            <td class="col-score">
+              <span class="score-badge {% if a.score >= 70 %}score-up{% elif a.score >= 50 %}score-amber{% else %}score-down{% endif %}">
+                {{ a.score if a.score is not none else '-' }}
+              </span>
+            </td>
+            <td class="col-bias">
+              <span class="bias-mini {% if a.bias == 'up' %}up{% elif a.bias == 'down' %}down{% else %}neutral{% endif %}">
+                {% if a.bias == 'up' %}Bullish{% elif a.bias == 'down' %}Bearish{% else %}Unclear{% endif %}
+              </span>
+            </td>
+            <td class="col-price">{{ a.last_price or '-' }}</td>
+            <td class="col-actions">
+              <button class="tb-btn tb-view" onclick="window.open('/dashboard/view/{{ a.id }}','_blank')">View</button>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="7" class="empty-row">No stock analyses saved yet. Run an analysis on the research page.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Admin Panel (admin only) -->
+  {% if user and user.is_admin %}
+  <div id="admin-panel" class="admin-panel hidden">
+    <div class="admin-panel-header">
+      <h2 class="admin-title">Users</h2>
+      <button class="tb-btn" onclick="loadAdminUsers()">Refresh</button>
+    </div>
+    <div id="admin-users-wrap">
+      <table class="db-table" id="admin-users-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Joined</th>
+            <th>Last Seen</th>
+            <th>Analyses</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="admin-users-body">
+          <tr><td colspan="7" class="empty-row">Click "Refresh" to load users.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</main>
+
+<!-- View Modal -->
+<div id="view-modal" class="modal-overlay hidden" onclick="closeViewModal(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Analysis Detail</span>
+      <button class="modal-close" onclick="closeViewModal()">x</button>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <!-- renderResults() target elements are injected here -->
+    </div>
+  </div>
+</div>
+
+<!-- Compare Modal -->
+<div id="compare-modal" class="modal-overlay hidden" onclick="closeCompareModal(event)">
+  <div class="compare-box" onclick="event.stopPropagation()">
+    <div class="compare-header">
+      <span class="modal-title">Side-by-Side Comparison</span>
+      <button class="modal-close" onclick="closeCompareModal()">x</button>
+    </div>
+    <div class="compare-grid">
+      <div class="compare-panel" id="compare-left">
+        <div class="compare-panel-title" id="compare-left-title">-</div>
+        <div class="compare-panel-body" id="compare-left-body"></div>
+      </div>
+      <div class="compare-panel" id="compare-right">
+        <div class="compare-panel-title" id="compare-right-title">-</div>
+        <div class="compare-panel-body" id="compare-right-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Delete Modal -->
+<div id="confirm-modal" class="modal-overlay hidden" onclick="closeConfirmModal(event)">
+  <div class="confirm-box" onclick="event.stopPropagation()">
+    <div class="confirm-title">Confirm Delete</div>
+    <div class="confirm-msg" id="confirm-msg">Delete selected analyses?</div>
+    <div class="confirm-actions">
+      <button class="tb-btn tb-delete" id="confirm-yes-btn">Delete</button>
+      <button class="tb-btn" onclick="closeConfirmModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="db-toast" class="db-toast hidden"></div>
+
+<!-- Inject analysis data for JS -->
+<script>
+  window.__FOREX_ANALYSES__ = {{ forex_analyses | tojson }};
+  window.__STOCK_ANALYSES__ = {{ stock_analyses | tojson }};
+  window.__IS_ADMIN__ = {{ 'true' if user and user.is_admin else 'false' }};
+  window.__USER_LOGGED_IN__ = true;
+</script>
+
+<!-- Load app.js first (renderResults, etc.) -->
+<script src="/static/js/app.js"></script>
+<script src="/static/js/dashboard.js"></script>
+
+</body>
+</html>

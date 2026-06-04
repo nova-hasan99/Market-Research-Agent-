@@ -1,10 +1,14 @@
 """
 Stock-specific data providers:
-  - Fundamentals:  Alpha Vantage OVERVIEW (P/E, EPS, Market Cap, Beta, etc.)
-  - Earnings:      Finnhub /stock/earnings (last 4 quarters) + /calendar/earnings (next date)
-  - Analyst:       Finnhub /stock/recommendation + /stock/price-target
-  - Insider:       Finnhub /stock/insider-transactions
-  - History:       Yahoo Finance 5Y weekly vs SPY (1M/3M/6M/1Y/2Y/5Y returns)
+  - Fundamentals:       Alpha Vantage OVERVIEW (P/E, EPS, Market Cap, Beta, etc.)
+  - Earnings:           Finnhub /stock/earnings + /calendar/earnings
+  - Analyst:            Finnhub /stock/recommendation + /stock/price-target
+  - Insider:            Finnhub /stock/insider-transactions
+  - History:            Yahoo Finance 5Y weekly vs SPY (1M/3M/6M/1Y/2Y/5Y returns)
+  - Short Interest:     Finnhub /stock/short-interest
+  - Institutional:      Finnhub /institutional/ownership
+  - Options Sentiment:  Finnhub /stock/option-chain (put/call OI ratio)
+  - Sector Performance: Yahoo Finance sector ETF 1M return
 Run directly: python -m app.providers.stock_info
 """
 import asyncio
@@ -16,6 +20,61 @@ from app.config import (
     ALPHA_VANTAGE_KEY, FINNHUB_KEY,
     AV_BASE, FINNHUB_BASE, YAHOO_BASE,
 )
+
+# ── Sector constants ──────────────────────────────────────────────────────────
+
+SECTOR_ETF_MAP: dict[str, str] = {
+    "Technology":             "XLK",
+    "Consumer Discretionary": "XLY",
+    "Health Care":            "XLV",
+    "Healthcare":             "XLV",
+    "Financials":             "XLF",
+    "Energy":                 "XLE",
+    "Communication Services": "XLC",
+    "Industrials":            "XLI",
+    "Materials":              "XLB",
+    "Utilities":              "XLU",
+    "Real Estate":            "XLRE",
+    "Consumer Staples":       "XLP",
+}
+
+SECTOR_PE_AVG: dict[str, float] = {
+    "Technology":             28.0,
+    "Consumer Discretionary": 24.0,
+    "Health Care":            22.0,
+    "Healthcare":             22.0,
+    "Financials":             14.0,
+    "Energy":                 12.0,
+    "Communication Services": 18.0,
+    "Industrials":            20.0,
+    "Materials":              16.0,
+    "Utilities":              17.0,
+    "Real Estate":            30.0,
+    "Consumer Staples":       20.0,
+}
+
+
+def get_sector_etf(sector: str | None) -> str:
+    """Map sector name to its benchmark ETF ticker; fall back to SPY."""
+    if not sector:
+        return "SPY"
+    su = sector.upper()
+    for key, etf in SECTOR_ETF_MAP.items():
+        if key.upper() in su or su in key.upper():
+            return etf
+    return "SPY"
+
+
+def get_sector_pe(sector: str | None) -> float:
+    """Return typical P/E for the sector; default 20.0."""
+    if not sector:
+        return 20.0
+    su = sector.upper()
+    for key, pe in SECTOR_PE_AVG.items():
+        if key.upper() in su or su in key.upper():
+            return pe
+    return 20.0
+
 
 # ── Empty / fallback dicts ────────────────────────────────────────────────────
 
@@ -49,6 +108,26 @@ _EMPTY_INSIDER = {
 _EMPTY_HISTORY = {
     "returns": {}, "spy_returns": {}, "vs_spy": {},
     "direction": "neutral", "label": "Unavailable", "available": False,
+}
+
+_EMPTY_SHORT_INTEREST = {
+    "short_percent": None, "days_to_cover": None,
+    "signal": "unknown", "squeeze_risk": False, "available": False,
+}
+
+_EMPTY_INSTITUTIONAL = {
+    "top_holders": [], "buy_count": 0, "sell_count": 0,
+    "signal": "neutral", "available": False,
+}
+
+_EMPTY_OPTIONS_SENT = {
+    "put_oi": None, "call_oi": None, "ratio": None,
+    "signal": "neutral", "label": "No Data", "available": False,
+}
+
+_EMPTY_SECTOR_PERF = {
+    "etf": "N/A", "etf_1m": None, "signal": "neutral",
+    "label": "Unavailable", "available": False,
 }
 
 
@@ -370,6 +449,443 @@ async def fetch_stock_history(client: httpx.AsyncClient, symbol: str) -> dict:
         }
     except Exception:
         return _EMPTY_HISTORY
+
+
+# ── Yahoo Finance base URLs + crumb-aware session helper ──────────────────────
+_YF_SUMMARY  = "https://query2.finance.yahoo.com/v10/finance/quoteSummary"
+_YF_OPTIONS  = "https://query2.finance.yahoo.com/v7/finance/options"
+_YF_HEADERS  = {
+    "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept":          "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Origin":          "https://finance.yahoo.com",
+    "Referer":         "https://finance.yahoo.com/",
+}
+
+# Module-level crumb cache — fetched once per process and reused across requests.
+# Prevents race conditions when multiple providers run in parallel.
+_YF_SESSION: dict[str, str | None] = {"crumb": None, "cookie": None}
+_YF_SESSION_LOCK = asyncio.Lock()
+
+
+async def _yf_ensure_session(client: httpx.AsyncClient) -> bool:
+    """
+    Fetch and cache Yahoo Finance crumb + cookie string once per process.
+    Uses asyncio.Lock so parallel callers wait rather than all hitting fc.yahoo.com.
+    Returns True if a valid session is now available.
+    """
+    if _YF_SESSION["crumb"]:
+        return True
+
+    async with _YF_SESSION_LOCK:
+        if _YF_SESSION["crumb"]:   # re-check inside lock
+            return True
+        try:
+            r1 = await client.get(
+                "https://fc.yahoo.com",
+                headers=_YF_HEADERS,
+                follow_redirects=True,
+                timeout=8,
+            )
+            # Merge cookies from response + client jar into a plain string
+            merged = {**dict(client.cookies), **dict(r1.cookies)}
+            cookie_str = "; ".join(f"{k}={v}" for k, v in merged.items())
+
+            r2 = await client.get(
+                "https://query2.finance.yahoo.com/v1/test/getcrumb",
+                headers={**_YF_HEADERS, "Cookie": cookie_str},
+                timeout=8,
+            )
+            if r2.status_code == 200 and r2.text.strip():
+                _YF_SESSION["crumb"]  = r2.text.strip()
+                _YF_SESSION["cookie"] = cookie_str
+                return True
+        except Exception:
+            pass
+    return False
+
+
+async def _yf_get(
+    client: httpx.AsyncClient,
+    url: str,
+    params: dict | None = None,
+) -> httpx.Response | None:
+    """
+    Fetch a Yahoo Finance URL with automatic crumb auth.
+    Pass 1 – no crumb (still works on many IPs / endpoints).
+    Pass 2 – full crumb + cookie session (required since 2024 for quoteSummary).
+    The session is fetched once and cached at module level; no race conditions.
+    """
+    params = params or {}
+
+    # ── Pass 1: plain request ────────────────────────────────────────────────
+    try:
+        r = await client.get(url, params=params, headers=_YF_HEADERS, timeout=12)
+        if r.status_code == 200:
+            data  = r.json()
+            qs    = data.get("quoteSummary", {})
+            oc    = data.get("optionChain",  {})
+            has_data  = bool(qs.get("result") or oc.get("result"))
+            has_error = bool(qs.get("error")  or oc.get("error"))
+            if has_data and not has_error:
+                return r
+    except Exception:
+        pass
+
+    # ── Pass 2: crumb session ────────────────────────────────────────────────
+    if not await _yf_ensure_session(client):
+        return None
+    try:
+        r = await client.get(
+            url,
+            params={**params, "crumb": _YF_SESSION["crumb"]},
+            headers={**_YF_HEADERS, "Cookie": _YF_SESSION["cookie"]},
+            timeout=12,
+        )
+        return r if r.status_code == 200 else None
+    except Exception:
+        return None
+
+
+# ── Short Interest  (Finnhub → Yahoo Finance) ─────────────────────────────────
+
+def _si_build(pct: float, dtc: float | None, source: str) -> dict:
+    signal = "high" if pct > 20 else "moderate" if pct > 10 else "low"
+    return {
+        "short_percent": pct,
+        "days_to_cover": dtc,
+        "signal":        signal,
+        "squeeze_risk":  pct > 20,
+        "source":        source,
+        "available":     True,
+    }
+
+
+async def _si_finnhub(client: httpx.AsyncClient, symbol: str) -> dict:
+    if not FINNHUB_KEY:
+        return _EMPTY_SHORT_INTEREST
+    try:
+        r = await client.get(
+            f"{FINNHUB_BASE}/stock/short-interest",
+            params={"symbol": symbol, "token": FINNHUB_KEY},
+            timeout=12,
+        )
+        if r.status_code != 200:
+            return _EMPTY_SHORT_INTEREST
+        items = (r.json() or {}).get("data") or []
+        if not items:
+            return _EMPTY_SHORT_INTEREST
+
+        latest = items[0]
+        def _n(k):
+            v = latest.get(k)
+            try: return float(v) if v is not None else None
+            except: return None
+
+        pct = _n("shortPercent")
+        if pct is not None and pct <= 1.0:
+            pct = round(pct * 100, 2)
+        if pct is None:
+            return _EMPTY_SHORT_INTEREST
+
+        dtc = _n("daysToCover") or _n("daysTocover")
+        return _si_build(pct, dtc, "Finnhub")
+    except Exception:
+        return _EMPTY_SHORT_INTEREST
+
+
+async def _si_yahoo(client: httpx.AsyncClient, symbol: str) -> dict:
+    try:
+        r = await _yf_get(
+            client, f"{_YF_SUMMARY}/{symbol}",
+            {"modules": "defaultKeyStatistics"},
+        )
+        if r is None:
+            return _EMPTY_SHORT_INTEREST
+        stats = (
+            (r.json() or {})
+            .get("quoteSummary", {})
+            .get("result", [{}])[0]
+            .get("defaultKeyStatistics", {})
+        )
+
+        def _rv(k):
+            v = stats.get(k, {})
+            raw = v.get("raw") if isinstance(v, dict) else v
+            try: return float(raw) if raw is not None else None
+            except: return None
+
+        pct = _rv("shortPercentOfFloat")
+        if pct is not None:
+            pct = round(pct * 100, 2)   # decimal → %
+        if pct is None:
+            return _EMPTY_SHORT_INTEREST
+
+        dtc = _rv("shortRatio")         # Yahoo "short ratio" = days to cover
+        return _si_build(pct, dtc, "Yahoo Finance")
+    except Exception:
+        return _EMPTY_SHORT_INTEREST
+
+
+async def fetch_short_interest(client: httpx.AsyncClient, symbol: str) -> dict:
+    """Short % float and days-to-cover. Waterfall: Finnhub → Yahoo Finance."""
+    if FINNHUB_KEY:
+        r = await _si_finnhub(client, symbol)
+        if r.get("available"):
+            return r
+    return await _si_yahoo(client, symbol)
+
+
+# ── Institutional Ownership  (Finnhub → Yahoo Finance) ───────────────────────
+
+async def _inst_finnhub(client: httpx.AsyncClient, symbol: str) -> dict:
+    if not FINNHUB_KEY:
+        return _EMPTY_INSTITUTIONAL
+    try:
+        r = await client.get(
+            f"{FINNHUB_BASE}/institutional/ownership",
+            params={"symbol": symbol, "token": FINNHUB_KEY},
+            timeout=12,
+        )
+        if r.status_code != 200:
+            return _EMPTY_INSTITUTIONAL
+        raw = (r.json() or {}).get("ownership") or []
+        if not raw:
+            return _EMPTY_INSTITUTIONAL
+
+        raw.sort(key=lambda x: float(x.get("percent") or 0), reverse=True)
+        top20      = raw[:20]
+        buy_count  = sum(1 for h in top20 if (h.get("change") or 0) > 0)
+        sell_count = sum(1 for h in top20 if (h.get("change") or 0) < 0)
+
+        signal = (
+            "accumulation" if buy_count > sell_count * 1.5 else
+            "distribution" if sell_count > buy_count * 1.5 else
+            "neutral"
+        )
+        top3 = [
+            {
+                "name":    (h.get("holder") or "Unknown")[:40],
+                "percent": float(h.get("percent") or 0),
+                "change":  int(h.get("change") or 0),
+            }
+            for h in raw[:3]
+        ]
+        return {
+            "top_holders": top3,
+            "buy_count":   buy_count,
+            "sell_count":  sell_count,
+            "signal":      signal,
+            "source":      "Finnhub",
+            "available":   True,
+        }
+    except Exception:
+        return _EMPTY_INSTITUTIONAL
+
+
+async def _inst_yahoo(client: httpx.AsyncClient, symbol: str) -> dict:
+    """
+    Yahoo Finance institutionOwnership gives current holdings only (no QoQ change).
+    buy_count/sell_count cannot be determined; signal defaults to 'neutral'.
+    """
+    try:
+        r = await _yf_get(
+            client, f"{_YF_SUMMARY}/{symbol}",
+            {"modules": "institutionOwnership"},
+        )
+        if r is None:
+            return _EMPTY_INSTITUTIONAL
+        owners = (
+            (r.json() or {})
+            .get("quoteSummary", {})
+            .get("result", [{}])[0]
+            .get("institutionOwnership", {})
+            .get("ownershipList") or []
+        )
+        if not owners:
+            return _EMPTY_INSTITUTIONAL
+
+        def _rv(obj, k):
+            v = obj.get(k, {})
+            return v.get("raw") if isinstance(v, dict) else v
+
+        # Sort by pctHeld descending
+        owners.sort(key=lambda x: float(_rv(x, "pctHeld") or 0), reverse=True)
+
+        top3 = [
+            {
+                "name":    (o.get("organization") or "Unknown")[:40],
+                "percent": round(float(_rv(o, "pctHeld") or 0) * 100, 2),
+                "change":  0,  # not available from Yahoo
+            }
+            for o in owners[:3]
+        ]
+        return {
+            "top_holders": top3,
+            "buy_count":   0,
+            "sell_count":  0,
+            "signal":      "neutral",   # direction unknown without change data
+            "source":      "Yahoo Finance",
+            "available":   True,
+        }
+    except Exception:
+        return _EMPTY_INSTITUTIONAL
+
+
+async def fetch_institutional_ownership(client: httpx.AsyncClient, symbol: str) -> dict:
+    """Top institutional holders. Waterfall: Finnhub → Yahoo Finance."""
+    if FINNHUB_KEY:
+        r = await _inst_finnhub(client, symbol)
+        if r.get("available"):
+            return r
+    return await _inst_yahoo(client, symbol)
+
+
+# ── Options Sentiment / Put-Call Ratio  (Finnhub → Yahoo Finance) ─────────────
+
+def _opt_build(total_put: int, total_call: int, source: str) -> dict:
+    if total_call == 0:
+        return _EMPTY_OPTIONS_SENT
+    ratio = round(total_put / total_call, 2)
+    if ratio >= 1.5:
+        signal, label = "extreme_fear", "Extreme Fear (>1.5)"
+    elif ratio >= 1.0:
+        signal, label = "bearish",      "Bearish (1.0-1.5)"
+    elif ratio >= 0.7:
+        signal, label = "neutral",      "Neutral (0.7-1.0)"
+    else:
+        signal, label = "bullish",      "Bullish (<0.7)"
+    return {
+        "put_oi":   total_put,
+        "call_oi":  total_call,
+        "ratio":    ratio,
+        "signal":   signal,
+        "label":    label,
+        "source":   source,
+        "available": True,
+    }
+
+
+async def _opt_finnhub(client: httpx.AsyncClient, symbol: str) -> dict:
+    if not FINNHUB_KEY:
+        return _EMPTY_OPTIONS_SENT
+    try:
+        r = await client.get(
+            f"{FINNHUB_BASE}/stock/option-chain",
+            params={"symbol": symbol, "token": FINNHUB_KEY},
+            timeout=15,
+        )
+        if r.status_code != 200:
+            return _EMPTY_OPTIONS_SENT
+        expirations = (r.json() or {}).get("data") or []
+        if not expirations:
+            return _EMPTY_OPTIONS_SENT
+
+        total_call = total_put = 0
+        for exp in expirations:
+            opts = exp.get("options") or {}
+            for c in (opts.get("CALL") or []):
+                total_call += int(c.get("openInterest") or 0)
+            for p in (opts.get("PUT") or []):
+                total_put  += int(p.get("openInterest") or 0)
+
+        return _opt_build(total_put, total_call, "Finnhub")
+    except Exception:
+        return _EMPTY_OPTIONS_SENT
+
+
+async def _opt_yahoo(client: httpx.AsyncClient, symbol: str) -> dict:
+    """
+    Yahoo Finance /v7/finance/options.
+    openInterest is often 0 on Yahoo (removed 2024); falls back to volume.
+    Put/call volume ratio is equally valid (used by CBOE for their daily P/C index).
+    Fetches nearest expiry + up to 5 monthly expirations for a broader sample.
+    """
+    def _sum_chain(options_list: list[dict]) -> tuple[int, int]:
+        """Sum options activity: prefer openInterest, fall back to volume."""
+        calls = puts = 0
+        for grp in options_list:
+            for c in (grp.get("calls") or []):
+                oi  = int(c.get("openInterest") or 0)
+                vol = int(c.get("volume")       or 0)
+                calls += oi if oi > 0 else vol
+            for p in (grp.get("puts") or []):
+                oi  = int(p.get("openInterest") or 0)
+                vol = int(p.get("volume")       or 0)
+                puts += oi if oi > 0 else vol
+        return calls, puts
+
+    try:
+        r = await _yf_get(client, f"{_YF_OPTIONS}/{symbol}")
+        if r is None:
+            return _EMPTY_OPTIONS_SENT
+        result = (r.json() or {}).get("optionChain", {}).get("result", [{}])[0]
+        if not result:
+            return _EMPTY_OPTIONS_SENT
+
+        total_call, total_put = _sum_chain(result.get("options") or [])
+
+        # Fetch up to 5 additional expirations (skip first already fetched)
+        extra_dates = (result.get("expirationDates") or [])[1:6]
+        if extra_dates:
+            tasks = [
+                _yf_get(client, f"{_YF_OPTIONS}/{symbol}", {"date": str(ts)})
+                for ts in extra_dates
+            ]
+            resps = await asyncio.gather(*tasks, return_exceptions=True)
+            for resp in resps:
+                if not resp or isinstance(resp, Exception):
+                    continue
+                sub = (resp.json() or {}).get("optionChain", {}).get("result", [{}])[0]
+                c, p = _sum_chain(sub.get("options") or [])
+                total_call += c
+                total_put  += p
+
+        return _opt_build(total_put, total_call, "Yahoo Finance")
+    except Exception:
+        return _EMPTY_OPTIONS_SENT
+
+
+async def fetch_options_sentiment(client: httpx.AsyncClient, symbol: str) -> dict:
+    """Put/call OI ratio. Waterfall: Finnhub → Yahoo Finance."""
+    if FINNHUB_KEY:
+        r = await _opt_finnhub(client, symbol)
+        if r.get("available"):
+            return r
+    return await _opt_yahoo(client, symbol)
+
+
+# ── Sector Relative Performance (Yahoo Finance) ───────────────────────────────
+
+async def fetch_sector_performance(client: httpx.AsyncClient, sector: str | None) -> dict:
+    """1-month return for the corresponding sector ETF from Yahoo Finance."""
+    etf = get_sector_etf(sector)
+    try:
+        r = await client.get(
+            f"{YAHOO_BASE}/{etf}",
+            params={"interval": "1d", "range": "2mo"},
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=15,
+        )
+        closes = _extract_closes(r.json())
+        if len(closes) < 5:
+            return {**_EMPTY_SECTOR_PERF, "etf": etf}
+
+        n = min(21, len(closes) - 1)   # ~1 month trading days
+        start = closes[-(n + 1)]
+        end   = closes[-1]
+        etf_1m = round((end - start) / abs(start) * 100, 1) if start else None
+
+        return {
+            "etf":      etf,
+            "etf_1m":   etf_1m,
+            "signal":   "neutral",
+            "label":    f"{etf}: {etf_1m:+.1f}% (1M)" if etf_1m is not None else f"{etf}: N/A",
+            "available": etf_1m is not None,
+        }
+    except Exception:
+        return {**_EMPTY_SECTOR_PERF, "etf": etf}
 
 
 def _extract_closes(data: dict) -> list[float]:

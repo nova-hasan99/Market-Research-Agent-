@@ -27,6 +27,8 @@ from app.providers.sentiment import fetch_sentiment
 from app.providers.stock_info import (
     fetch_stock_fundamentals, fetch_stock_earnings,
     fetch_stock_analyst, fetch_stock_insider, fetch_stock_history,
+    fetch_short_interest, fetch_institutional_ownership,
+    fetch_options_sentiment, fetch_sector_performance, get_sector_pe,
 )
 from app.providers.yields import fetch_yield_differential
 
@@ -42,17 +44,25 @@ _EMPTY_EARN = {"quarters": [], "next_date": None, "beats": 0, "misses": 0, "avai
 _EMPTY_ANA  = {"available": False, "consensus": "No Data", "total": 0}
 _EMPTY_INS  = {"available": False, "transactions": [], "buy_count": 0, "sell_count": 0}
 _EMPTY_HIST = {"available": False, "direction": "neutral", "label": "Unavailable"}
+_EMPTY_SI   = {"short_percent": None, "days_to_cover": None, "signal": "unknown", "squeeze_risk": False, "available": False}
+_EMPTY_INST = {"top_holders": [], "buy_count": 0, "sell_count": 0, "signal": "neutral", "available": False}
+_EMPTY_OPT  = {"put_oi": None, "call_oi": None, "ratio": None, "signal": "neutral", "label": "No Data", "available": False}
+_EMPTY_SECT = {"etf": "N/A", "etf_1m": None, "signal": "neutral", "label": "Unavailable", "available": False}
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
 @router.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
-    return templates.TemplateResponse(request, "index.html")
+    from app.auth import get_current_user
+    user = await get_current_user(request)
+    return templates.TemplateResponse(request, "index.html", {"user": user})
 
 
 @router.get("/research", response_class=HTMLResponse)
 async def research_page(request: Request):
-    return templates.TemplateResponse(request, "research.html")
+    from app.auth import get_current_user
+    user = await get_current_user(request)
+    return templates.TemplateResponse(request, "research.html", {"user": user})
 
 
 # ── API: stock search ─────────────────────────────────────────────────────────
@@ -112,9 +122,36 @@ def api_providers():
     }
 
 
+# ── Background save helper ────────────────────────────────────────────────────
+async def _save_analysis_bg(user_id: str, data: dict):
+    try:
+        from app.db import get_admin_client
+        client = get_admin_client()
+        client.table("analyses").insert({
+            "user_id":    user_id,
+            "asset_type": data["asset_type"],
+            "asset":      data["asset"],
+            "score":      data["score"],
+            "bias":       data["bias"],
+            "last_price": str(data.get("last_price", "")),
+            "data":       data,
+        }).execute()
+    except Exception:
+        pass
+
+
 # ── API: analyse ─────────────────────────────────────────────────────────────
 @router.post("/api/analyze")
-async def analyze(req: AnalyzeRequest):
+async def analyze(req: AnalyzeRequest, request: Request):
+    # Require login — unauthenticated requests get 401
+    from app.auth import get_current_user as _gcu
+    _user = await _gcu(request)
+    if not _user:
+        raise HTTPException(
+            status_code=401,
+            detail="Login required. Please sign in to use the analysis feature.",
+        )
+
     # Build symbols
     if req.asset_type == "forex":
         quote     = (req.quote or "USD").upper()
@@ -183,6 +220,9 @@ async def analyze(req: AnalyzeRequest):
                 "analyst":           None,
                 "insider":           None,
                 "history":           None,
+                "short_interest":    None,
+                "institutional":     None,
+                "options_sentiment": None,
                 "providers_used":    {"hourly_data": h_prov, "daily_data": d_prov},
             }
 
@@ -195,35 +235,47 @@ async def analyze(req: AnalyzeRequest):
             )
 
             # Phase 2: supplemental data (all optional; exceptions return fallbacks)
-            sentiment, events, fundamentals, earnings, insider, history = await asyncio.gather(
+            (sentiment, events, fundamentals, earnings, insider, history,
+             short_interest, institutional, options_sentiment) = await asyncio.gather(
                 fetch_sentiment(client, news_tick),
                 fetch_events(client),
                 fetch_stock_fundamentals(client, symbol),
                 fetch_stock_earnings(client, symbol),
                 fetch_stock_insider(client, symbol),
                 fetch_stock_history(client, symbol),
+                fetch_short_interest(client, symbol),
+                fetch_institutional_ownership(client, symbol),
+                fetch_options_sentiment(client, symbol),
                 return_exceptions=True,
             )
 
             def _safe(val, fallback):
                 return val if not isinstance(val, Exception) else fallback
 
-            sentiment    = _safe(sentiment,    {"score": 0.0, "label": "neutral", "article_count": 0, "headlines": []})
-            events       = _safe(events,       [])
-            fundamentals = _safe(fundamentals, _EMPTY_FUND)
-            earnings     = _safe(earnings,     _EMPTY_EARN)
-            insider      = _safe(insider,      _EMPTY_INS)
-            history      = _safe(history,      _EMPTY_HIST)
+            sentiment         = _safe(sentiment,         {"score": 0.0, "label": "neutral", "article_count": 0, "headlines": []})
+            events            = _safe(events,            [])
+            fundamentals      = _safe(fundamentals,      _EMPTY_FUND)
+            earnings          = _safe(earnings,          _EMPTY_EARN)
+            insider           = _safe(insider,           _EMPTY_INS)
+            history           = _safe(history,           _EMPTY_HIST)
+            short_interest    = _safe(short_interest,    _EMPTY_SI)
+            institutional     = _safe(institutional,     _EMPTY_INST)
+            options_sentiment = _safe(options_sentiment, _EMPTY_OPT)
 
-            # Phase 2: compute technicals, then fetch analyst with current price
+            # Phase 3: compute technicals, then fetch analyst + sector perf (need price + sector)
             hourly = analyze_timeframe(hourly_df)
             daily  = analyze_timeframe(daily_df)
             regime = volatility_regime(daily_df)
 
-            analyst = await fetch_stock_analyst(client, symbol)
-            analyst = _safe(analyst, _EMPTY_ANA)
+            analyst, sector_perf = await asyncio.gather(
+                fetch_stock_analyst(client, symbol),
+                fetch_sector_performance(client, fundamentals.get("sector")),
+                return_exceptions=True,
+            )
+            analyst     = _safe(analyst,     _EMPTY_ANA)
+            sector_perf = _safe(sector_perf, _EMPTY_SECT)
 
-            # Compute price-target upside now that we have the price
+            # Compute analyst price-target upside now that we have the current price
             if analyst.get("available") and analyst.get("price_target_mean") and daily["last_price"]:
                 try:
                     price = float(daily["last_price"])
@@ -232,9 +284,32 @@ async def analyze(req: AnalyzeRequest):
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
+            # Annotate fundamentals with sector PE comparison
+            if isinstance(fundamentals, dict) and fundamentals.get("available"):
+                sp_avg = get_sector_pe(fundamentals.get("sector"))
+                pe     = fundamentals.get("pe_ratio")
+                fundamentals["sector_pe_avg"]    = sp_avg
+                fundamentals["pe_vs_sector_pct"] = (
+                    round((pe - sp_avg) / sp_avg * 100, 1) if pe is not None else None
+                )
+
+            # Attach sector 1M return to history for frontend display
+            if isinstance(history, dict) and isinstance(sector_perf, dict):
+                history["sector_etf"]  = sector_perf.get("etf")
+                history["sector_1m"]   = sector_perf.get("etf_1m")
+                stock_1m = history.get("returns", {}).get("1M")
+                etf_1m   = sector_perf.get("etf_1m")
+                history["vs_sector_1m"] = (
+                    round(stock_1m - etf_1m, 1)
+                    if stock_1m is not None and etf_1m is not None else None
+                )
+
             scored = compute_stock_alignment(
                 hourly, daily, sentiment, fundamentals, analyst, earnings, history, events,
                 insider=insider,
+                institutional=institutional,
+                short_interest=short_interest,
+                options_sentiment=options_sentiment,
             )
 
             response: dict = {
@@ -260,6 +335,9 @@ async def analyze(req: AnalyzeRequest):
                 "analyst":           analyst,
                 "insider":           insider,
                 "history":           history,
+                "short_interest":    short_interest,
+                "institutional":     institutional,
+                "options_sentiment": options_sentiment,
                 "providers_used":    {"hourly_data": h_prov, "daily_data": d_prov},
             }
 
@@ -268,4 +346,8 @@ async def analyze(req: AnalyzeRequest):
         ai_text, ai_prov = await generate_ai_summary(ai_client, response)
 
     response["ai_summary"] = {"text": ai_text, "provider": ai_prov}
+
+    # ── Auto-save (fire-and-forget) ───────────────────────────────────────────
+    asyncio.create_task(_save_analysis_bg(_user["id"], response))
+
     return response

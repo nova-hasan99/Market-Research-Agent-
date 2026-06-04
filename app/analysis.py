@@ -1,9 +1,12 @@
 """
-Alignment score computation -- v2.
+Alignment score computation -- v3.
 Weights (forex): daily(25) + hourly(20) + intermarket(18) + institutional(15) + sentiment(12) + events(10) = 100
-Stocks omit intermarket and institutional; raw max = 67, scaled to 100.
+Weights (stock): daily(22) + hourly(18) + fundamental(14) + analyst(11) + institutional_ownership(8)
+                 + sentiment(9) + historical(9) + earnings(9) = 100
+                 plus short-interest modifier +-3 pts (clamped to 100).
 Run directly: python -m app.analysis
 """
+from datetime import date as _date
 
 
 def _vote(d: str) -> int:
@@ -241,9 +244,9 @@ def compute_alignment(
 # ── Stock scoring helpers ─────────────────────────────────────────────────────
 
 def _score_fundamentals(fund: dict) -> tuple[float, str]:
-    """Returns (points 0-15, direction) from P/E, revenue growth, profit margin."""
+    """Returns (points 0-14, direction) from P/E, revenue growth, profit margin."""
     if not fund.get("available"):
-        return 7.5, "neutral"   # half points when data unavailable
+        return 7.0, "neutral"
 
     signals: list[float] = []
 
@@ -271,69 +274,97 @@ def _score_fundamentals(fund: dict) -> tuple[float, str]:
         else:            signals.append(-0.7)
 
     if not signals:
-        return 7.5, "neutral"
+        return 7.0, "neutral"
 
     avg = sum(signals) / len(signals)
-    pts = max(0.0, min(15.0, (avg + 1.0) / 2.0 * 15.0))
+    pts = max(0.0, min(14.0, (avg + 1.0) / 2.0 * 14.0))
     direction = "up" if avg > 0.15 else "down" if avg < -0.15 else "neutral"
     return round(pts, 1), direction
 
 
 def _score_analyst_consensus(analyst: dict) -> tuple[float, str]:
-    """Returns (points 0-12, direction) from buy/hold/sell ratio."""
+    """Returns (points 0-11, direction) from buy/hold/sell ratio."""
     if not analyst.get("available") or not analyst.get("total"):
         return 0.0, "neutral"
 
     total    = analyst["total"]
     buy_pct  = (analyst.get("strong_buy", 0) + analyst.get("buy",        0)) / total
     sell_pct = (analyst.get("strong_sell",0) + analyst.get("sell",       0)) / total
-    score    = buy_pct - sell_pct              # range [-1, 1]
-    pts      = max(0.0, min(12.0, (score + 1.0) / 2.0 * 12.0))
+    score    = buy_pct - sell_pct
+    pts      = max(0.0, min(11.0, (score + 1.0) / 2.0 * 11.0))
     direction = "up" if score > 0.1 else "down" if score < -0.1 else "neutral"
     return round(pts, 1), direction
 
 
 def _score_historical_trend(history: dict) -> tuple[float, str]:
-    """Returns (points 0-10, direction) from 1Y performance vs SPY."""
+    """Returns (points 0-9, direction) from 1Y performance vs SPY."""
     if not history.get("available"):
-        return 5.0, "neutral"   # neutral when data unavailable
+        return 4.5, "neutral"
 
-    vs_1y = history.get("vs_spy", {}).get("1Y")
-    ret_1y = history.get("returns", {}).get("1Y")
-
-    # Prefer vs-SPY; fall back to absolute 1Y return
-    val = vs_1y if vs_1y is not None else ret_1y
+    vs_1y  = history.get("vs_spy",    {}).get("1Y")
+    ret_1y = history.get("returns",   {}).get("1Y")
+    val    = vs_1y if vs_1y is not None else ret_1y
     if val is None:
-        return 5.0, "neutral"
+        return 4.5, "neutral"
 
-    if   val > 20:  pts, direction = 10.0, "up"
-    elif val > 10:  pts, direction =  8.0, "up"
-    elif val > 3:   pts, direction =  6.5, "up"
-    elif val > -3:  pts, direction =  5.0, "neutral"
-    elif val > -10: pts, direction =  3.0, "down"
-    elif val > -20: pts, direction =  1.5, "down"
-    else:           pts, direction =  0.0, "down"
+    if   val > 20:  pts, direction = 9.0, "up"
+    elif val > 10:  pts, direction = 7.2, "up"
+    elif val > 3:   pts, direction = 5.9, "up"
+    elif val > -3:  pts, direction = 4.5, "neutral"
+    elif val > -10: pts, direction = 2.7, "down"
+    elif val > -20: pts, direction = 1.4, "down"
+    else:           pts, direction = 0.0, "down"
     return pts, direction
 
 
 def _score_earnings_quality(earnings: dict) -> tuple[float, str]:
-    """Returns (points 0-8, direction) from EPS beat/miss record."""
+    """Returns (points 0-9, direction) from EPS beat/miss record."""
     if not earnings.get("available"):
-        return 4.0, "neutral"
+        return 4.5, "neutral"
 
     beats  = earnings.get("beats",  0)
     misses = earnings.get("misses", 0)
     total  = beats + misses
     if total == 0:
-        return 4.0, "neutral"
+        return 4.5, "neutral"
 
     beat_ratio = beats / total
-    if   beat_ratio >= 1.0: pts, direction = 8.0, "up"
-    elif beat_ratio >= 0.75: pts, direction = 6.0, "up"
-    elif beat_ratio >= 0.5:  pts, direction = 4.0, "neutral"
-    elif beat_ratio >= 0.25: pts, direction = 2.0, "down"
+    if   beat_ratio >= 1.0:  pts, direction = 9.0, "up"
+    elif beat_ratio >= 0.75: pts, direction = 6.8, "up"
+    elif beat_ratio >= 0.5:  pts, direction = 4.5, "neutral"
+    elif beat_ratio >= 0.25: pts, direction = 2.3, "down"
     else:                    pts, direction = 0.0, "down"
     return pts, direction
+
+
+def _score_institutional_ownership(institutional: dict) -> tuple[float, str]:
+    """Returns (points 0-8, direction) from institutional accumulation/distribution."""
+    if not institutional.get("available"):
+        return 4.0, "neutral"
+
+    buy_ct  = institutional.get("buy_count",  0)
+    sell_ct = institutional.get("sell_count", 0)
+    total   = buy_ct + sell_ct
+    if total == 0:
+        return 4.0, "neutral"
+
+    buy_pct = buy_ct / total
+    if   buy_pct >= 0.70: return 8.0, "up"
+    elif buy_pct >= 0.55: return 6.0, "up"
+    elif buy_pct >= 0.45: return 4.0, "neutral"
+    elif buy_pct >= 0.30: return 2.0, "down"
+    else:                 return 0.0, "down"
+
+
+def _short_interest_modifier(short_interest: dict, daily_direction: str) -> float:
+    """Returns +-3 pts modifier based on short interest and price direction."""
+    if not short_interest.get("available"):
+        return 0.0
+    pct = short_interest.get("short_percent")
+    if pct is None or pct <= 20:
+        return 0.0
+    # High short (>20%): squeeze catalyst if upward, bearish confirmation otherwise
+    return 3.0 if daily_direction == "up" else -3.0
 
 
 # ── Stock-specific helpers ────────────────────────────────────────────────────
@@ -341,8 +372,44 @@ def _score_earnings_quality(earnings: dict) -> tuple[float, str]:
 def _find_stock_key_signal(
     daily: dict, hourly: dict, sentiment: dict,
     analyst: dict, earnings: dict, history: dict,
+    institutional: dict | None = None,
+    short_interest: dict | None = None,
+    fundamentals:   dict | None = None,
 ) -> dict:
+    inst_data = institutional  if isinstance(institutional,  dict) else {}
+    si_data   = short_interest if isinstance(short_interest, dict) else {}
+    fund_data = fundamentals   if isinstance(fundamentals,   dict) else {}
+
     candidates: list[dict] = []
+
+    # Smart money aligned: institutions accumulating + analyst consensus buy
+    if (inst_data.get("available") and inst_data.get("signal") == "accumulation"
+            and analyst.get("available")
+            and analyst.get("consensus") in ("Strong Buy", "Buy")):
+        candidates.append({
+            "text": "Smart Money Aligned: Institutions Accumulating + Analyst Buy",
+            "direction": "up", "strength": 4,
+        })
+
+    # Short squeeze setup: >20% float short + price heading up
+    si_pct = si_data.get("short_percent")
+    if si_pct is not None and si_pct > 20 and daily.get("direction") == "up":
+        candidates.append({
+            "text": f"Short Squeeze Setup: {si_pct:.1f}% Float Short + Upward Momentum",
+            "direction": "up", "strength": 4,
+        })
+
+    # Near 52W high breakout (within 3%)
+    try:
+        last_price  = float(daily.get("last_price", 0))
+        week52_high = float(fund_data.get("week52_high") or 0)
+        if week52_high > 0 and last_price > 0 and (week52_high - last_price) / week52_high < 0.03:
+            candidates.append({
+                "text": f"Near 52W High Breakout (within 3% of ${week52_high:.2f})",
+                "direction": "up", "strength": 3,
+            })
+    except (ValueError, TypeError):
+        pass
 
     # RSI extremes
     if daily["rsi"] < 30:
@@ -356,38 +423,32 @@ def _find_stock_key_signal(
         upside    = analyst.get("upside_pct")
         if consensus in ("Strong Buy", "Buy") and (upside is None or upside > 10):
             candidates.append({
-                "text":      f"Analyst {consensus}" + (f" ({upside:+.0f}% upside)" if upside else ""),
+                "text": f"Analyst {consensus}" + (f" ({upside:+.0f}% upside)" if upside else ""),
                 "direction": "up", "strength": 3,
             })
         elif consensus in ("Strong Sell", "Sell"):
-            candidates.append({
-                "text": f"Analyst {consensus}", "direction": "down", "strength": 3,
-            })
+            candidates.append({"text": f"Analyst {consensus}", "direction": "down", "strength": 3})
 
     # Consistent earnings beats
     beats  = earnings.get("beats",  0)
     misses = earnings.get("misses", 0)
     total  = beats + misses
     if total >= 3 and beats == total:
-        candidates.append({
-            "text": f"Earnings Beat {beats}/{total} Quarters", "direction": "up", "strength": 2,
-        })
+        candidates.append({"text": f"Earnings Beat {beats}/{total} Quarters", "direction": "up",   "strength": 2})
     elif total >= 3 and misses == total:
-        candidates.append({
-            "text": f"Earnings Miss {misses}/{total} Quarters", "direction": "down", "strength": 2,
-        })
+        candidates.append({"text": f"Earnings Miss {misses}/{total} Quarters", "direction": "down", "strength": 2})
 
     # Strong historical outperformance vs SPY
     vs_1y = history.get("vs_spy", {}).get("1Y")
     if vs_1y is not None:
         if vs_1y > 20:
-            candidates.append({"text": f"Outperforming SPY by {vs_1y:+.0f}% (1Y)", "direction": "up", "strength": 2})
+            candidates.append({"text": f"Outperforming SPY by {vs_1y:+.0f}% (1Y)", "direction": "up",   "strength": 2})
         elif vs_1y < -20:
             candidates.append({"text": f"Underperforming SPY by {abs(vs_1y):.0f}% (1Y)", "direction": "down", "strength": 2})
 
     # MACD aligned on both TFs
     if daily["macd_above_signal"] and hourly["macd_above_signal"]:
-        candidates.append({"text": "MACD Bullish on Daily + Hourly", "direction": "up", "strength": 2})
+        candidates.append({"text": "MACD Bullish on Daily + Hourly", "direction": "up",   "strength": 2})
     elif not daily["macd_above_signal"] and not hourly["macd_above_signal"]:
         candidates.append({"text": "MACD Bearish on Daily + Hourly", "direction": "down", "strength": 2})
 
@@ -401,7 +462,7 @@ def _find_stock_key_signal(
     # Sentiment
     score = sentiment.get("score", 0.0) if isinstance(sentiment, dict) else 0.0
     if score > 0.3:
-        candidates.append({"text": f"Strong Bullish News Sentiment ({score:.2f})", "direction": "up", "strength": 1})
+        candidates.append({"text": f"Strong Bullish News Sentiment ({score:.2f})", "direction": "up",   "strength": 1})
     elif score < -0.3:
         candidates.append({"text": f"Strong Bearish News Sentiment ({score:.2f})", "direction": "down", "strength": 1})
 
@@ -413,45 +474,67 @@ def _find_stock_key_signal(
 
 def _find_stock_main_risk(
     daily: dict, earnings: dict, fundamentals: dict, insider: dict, events: list,
+    short_interest: dict | None = None, institutional: dict | None = None,
 ) -> str:
-    # Upcoming earnings date (high uncertainty)
+    si_data   = short_interest if isinstance(short_interest, dict) else {}
+    inst_data = institutional  if isinstance(institutional,  dict) else {}
+
+    # Earnings proximity (always surfaces at <=14 days)
     next_date = earnings.get("next_date")
+    days_away = None
     if next_date:
         try:
-            from datetime import date
-            days_away = (date.fromisoformat(next_date) - date.today()).days
-            if 0 <= days_away <= 21:
-                return f"Earnings report due {next_date} ({days_away}d away) -- expect volatility"
+            days_away = (_date.fromisoformat(next_date) - _date.today()).days
         except ValueError:
-            pass
+            days_away = None
 
-    # Extreme valuation
-    pe = fundamentals.get("pe_ratio")
-    if pe is not None and pe > 45:
-        return f"Extreme valuation: P/E ratio is {pe:.0f}x (high reversal risk)"
+    if days_away is not None and 0 <= days_away <= 14:
+        return f"Earnings in {days_away} days ({next_date}) - expect sharp price movement"
+
+    # Extreme PE premium vs sector (>50% above sector avg)
+    pe_vs = fundamentals.get("pe_vs_sector_pct")
+    if pe_vs is not None and pe_vs > 50:
+        pe      = fundamentals.get("pe_ratio")
+        sec_pe  = fundamentals.get("sector_pe_avg", 20)
+        return (
+            f"Extreme valuation: P/E {pe:.0f}x is {pe_vs:.0f}% above sector avg "
+            f"({sec_pe:.0f}x)"
+        )
+
+    # Double red flag: insider selling + institutional distribution
+    sc = insider.get("sell_count", 0)
+    bc = insider.get("buy_count",  0)
+    if sc > bc * 2 and inst_data.get("signal") == "distribution":
+        return "Double red flag: insider selling and institutional distribution detected"
+
+    # High short without upward momentum
+    si_pct = si_data.get("short_percent")
+    if si_pct is not None and si_pct > 20 and daily["direction"] != "up":
+        return f"High short interest ({si_pct:.1f}%) with no upward momentum - bearish conviction"
 
     # Revenue decline
     rev = fundamentals.get("revenue_growth")
     if rev is not None and rev < -0.05:
-        return f"Revenue declining {rev * 100:.1f}% YoY -- fundamental deterioration"
+        return f"Revenue declining {rev * 100:.1f}% YoY - fundamental deterioration"
 
     # RSI extreme
     if daily["rsi"] > 75:
-        return f"Daily RSI Extreme Overbought ({daily['rsi']:.0f}) -- reversal risk"
+        return f"Daily RSI Extreme Overbought ({daily['rsi']:.0f}) - reversal risk"
     if daily["rsi"] < 25:
-        return f"Daily RSI Extreme Oversold ({daily['rsi']:.0f}) -- reversal risk"
+        return f"Daily RSI Extreme Oversold ({daily['rsi']:.0f}) - reversal risk"
 
     # Heavy insider selling
-    sc = insider.get("sell_count", 0)
-    bc = insider.get("buy_count",  0)
     if sc >= 3 and sc > bc * 2:
         return f"Heavy insider selling detected ({sc} sell transactions)"
 
     # High-impact event
     hi = [e for e in events if str(e.get("impact", "")).lower() in ("high", "3")]
     if hi:
-        e = hi[0]
-        return f"High-impact event: {e.get('event', '')} ({e.get('country', '')})"
+        return f"High-impact event: {hi[0].get('event', '')} ({hi[0].get('country', '')})"
+
+    # Earnings in 15-30 days (secondary warning)
+    if days_away is not None and 15 <= days_away <= 30:
+        return f"Earnings in {days_away} days ({next_date}) - monitor for volatility"
 
     return "Monitor earnings calendar and macro news for unexpected catalysts"
 
@@ -517,57 +600,75 @@ def _detect_stock_conflicts(
 # ── Stock alignment ───────────────────────────────────────────────────────────
 
 def compute_stock_alignment(
-    hourly:       dict,
-    daily:        dict,
-    sentiment:    dict,
-    fundamentals: dict,
-    analyst:      dict,
-    earnings:     dict,
-    history:      dict,
-    events:       list,
-    insider:      dict | None = None,
+    hourly:            dict,
+    daily:             dict,
+    sentiment:         dict,
+    fundamentals:      dict,
+    analyst:           dict,
+    earnings:          dict,
+    history:           dict,
+    events:            list,
+    insider:           dict | None = None,
+    institutional:     dict | None = None,
+    short_interest:    dict | None = None,
+    options_sentiment: dict | None = None,   # noqa: kept for future scoring
 ) -> dict:
     """
-    Stock scoring (total 100 pts):
-        Daily Technical   25 pts
-        Hourly Technical  20 pts
-        Fundamental Score 15 pts  (P/E, revenue growth, profit margin)
-        Analyst Consensus 12 pts  (buy/hold/sell ratio)
-        News Sentiment    10 pts
-        Historical vs SPY 10 pts  (1Y return vs SPY)
-        Earnings Quality   8 pts  (beat/miss record last 4Q)
+    Stock scoring (total 100 pts, plus +-3 modifier):
+        Daily Technical         22 pts
+        Hourly Technical        18 pts
+        Fundamental Score       14 pts  (P/E, revenue growth, profit margin)
+        Analyst Consensus       11 pts  (buy/hold/sell ratio)
+        Institutional Ownership  8 pts  (accumulation vs distribution)
+        News Sentiment           9 pts
+        Historical vs SPY        9 pts  (1Y return vs SPY)
+        Earnings Quality         9 pts  (beat/miss record last 4Q)
+        Short Interest modifier +-3 pts (squeeze risk or bearish conviction)
     """
-    daily_pts  = daily["strength"]  * 25
-    hourly_pts = hourly["strength"] * 20
+    daily_pts  = daily["strength"]  * 22
+    hourly_pts = hourly["strength"] * 18
 
     fund_pts,    fund_dir    = _score_fundamentals(fundamentals)
     analyst_pts, analyst_dir = _score_analyst_consensus(analyst)
     hist_pts,    hist_dir    = _score_historical_trend(history)
     earn_pts,    earn_dir    = _score_earnings_quality(earnings)
 
+    inst_data = institutional if isinstance(institutional, dict) else {}
+    si_data   = short_interest if isinstance(short_interest, dict) else {}
+
+    inst_pts,  inst_dir = _score_institutional_ownership(inst_data)
+    si_mod              = _short_interest_modifier(si_data, daily["direction"])
+
     snt      = sentiment if isinstance(sentiment, dict) else {}
     s        = snt.get("score", 0.0)
     sent_dir = "up" if s > 0 else "down" if s < 0 else "neutral"
-    sent_pts = min(abs(s) / 0.5, 1.0) * 10
+    sent_pts = min(abs(s) / 0.5, 1.0) * 9
 
     # Direction vote (weighted)
     net = (
-        _vote(daily["direction"])  * 25 +
-        _vote(hourly["direction"]) * 20 +
-        _vote(fund_dir)            * 15 +
-        _vote(analyst_dir)         * 12 +
-        _vote(sent_dir)            * 10 +
-        _vote(hist_dir)            * 10 +
-        _vote(earn_dir)            *  8
+        _vote(daily["direction"])  * 22 +
+        _vote(hourly["direction"]) * 18 +
+        _vote(fund_dir)            * 14 +
+        _vote(analyst_dir)         * 11 +
+        _vote(inst_dir)            *  8 +
+        _vote(sent_dir)            *  9 +
+        _vote(hist_dir)            *  9 +
+        _vote(earn_dir)            *  9
     )
     bias = "up" if net > 8 else "down" if net < -8 else "unclear"
 
-    raw   = daily_pts + hourly_pts + fund_pts + analyst_pts + sent_pts + hist_pts + earn_pts
-    score = min(int(round(raw)), 100)
+    raw   = daily_pts + hourly_pts + fund_pts + analyst_pts + inst_pts + sent_pts + hist_pts + earn_pts
+    score = max(0, min(100, int(round(raw + si_mod))))
 
     ins_data   = insider if isinstance(insider, dict) else {}
-    key_signal = _find_stock_key_signal(daily, hourly, snt, analyst, earnings, history)
-    main_risk  = _find_stock_main_risk(daily, earnings, fundamentals, ins_data, events)
+    key_signal = _find_stock_key_signal(
+        daily, hourly, snt, analyst, earnings, history,
+        institutional=inst_data, short_interest=si_data, fundamentals=fundamentals,
+    )
+    main_risk  = _find_stock_main_risk(
+        daily, earnings, fundamentals, ins_data, events,
+        short_interest=si_data, institutional=inst_data,
+    )
     conflicts  = _detect_stock_conflicts(daily, hourly, snt, analyst, fundamentals)
 
     return {
@@ -577,37 +678,44 @@ def compute_stock_alignment(
         "main_risk":       main_risk,
         "conflicts":       conflicts,
         "components": {
-            "daily_technical":  {"points": round(daily_pts, 1),  "max": 25, "direction": daily["direction"]},
-            "hourly_technical": {"points": round(hourly_pts, 1), "max": 20, "direction": hourly["direction"]},
-            "fundamental":      {
-                "points": fund_pts, "max": 15, "direction": fund_dir,
+            "daily_technical":  {"points": round(daily_pts, 1),  "max": 22, "direction": daily["direction"]},
+            "hourly_technical": {"points": round(hourly_pts, 1), "max": 18, "direction": hourly["direction"]},
+            "fundamental": {
+                "points": fund_pts, "max": 14, "direction": fund_dir,
                 "pe_ratio":       fundamentals.get("pe_ratio"),
                 "revenue_growth": fundamentals.get("revenue_growth"),
                 "profit_margin":  fundamentals.get("profit_margin"),
                 "available":      fundamentals.get("available", False),
             },
             "analyst_consensus": {
-                "points":    analyst_pts, "max": 12, "direction": analyst_dir,
-                "consensus": analyst.get("consensus", "No Data"),
-                "upside_pct":analyst.get("upside_pct"),
-                "available": analyst.get("available", False),
+                "points":     analyst_pts, "max": 11, "direction": analyst_dir,
+                "consensus":  analyst.get("consensus", "No Data"),
+                "upside_pct": analyst.get("upside_pct"),
+                "available":  analyst.get("available", False),
+            },
+            "institutional_ownership": {
+                "points":     round(inst_pts, 1), "max": 8, "direction": inst_dir,
+                "signal":     inst_data.get("signal", "neutral"),
+                "buy_count":  inst_data.get("buy_count",  0),
+                "sell_count": inst_data.get("sell_count", 0),
+                "available":  inst_data.get("available", False),
             },
             "sentiment": {
-                "points":    round(sent_pts, 1), "max": 10,
+                "points":    round(sent_pts, 1), "max": 9,
                 "direction": sent_dir,
                 "label":     snt.get("label", "neutral"),
                 "articles":  snt.get("article_count", 0),
                 "headlines": snt.get("headlines", []),
             },
             "historical_trend": {
-                "points":    hist_pts, "max": 10, "direction": hist_dir,
-                "vs_spy_1y": history.get("vs_spy", {}).get("1Y"),
-                "return_1y": history.get("returns", {}).get("1Y"),
+                "points":    hist_pts, "max": 9, "direction": hist_dir,
+                "vs_spy_1y": history.get("vs_spy",    {}).get("1Y"),
+                "return_1y": history.get("returns",   {}).get("1Y"),
                 "label":     history.get("label", "N/A"),
                 "available": history.get("available", False),
             },
             "earnings_quality": {
-                "points":    earn_pts, "max": 8, "direction": earn_dir,
+                "points":    earn_pts, "max": 9, "direction": earn_dir,
                 "beats":     earnings.get("beats",  0),
                 "misses":    earnings.get("misses", 0),
                 "available": earnings.get("available", False),

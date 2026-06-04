@@ -22,6 +22,14 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 # ── News sentiment ───────────────────────────────────────────────────────────
 NEWSAPI_KEY   = os.getenv("NEWSAPI_KEY", "")
 
+# ── Supabase ─────────────────────────────────────────────────────────────────
+SUPABASE_URL          = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL", "")
+SUPABASE_ANON_KEY     = os.getenv("SUPABASE_ANON_KEY") or os.getenv("VITE_SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_KEY  = os.getenv("SUPABASE_SERVICE_KEY", "")   # service role key (bypasses RLS)
+SUPABASE_ACCESS_TOKEN = os.getenv("SUPABASE_ACCESS_TOKEN", "")  # Management API PAT
+ADMIN_EMAIL = os.getenv("VITE_ADMIN_EMAIL", "")
+ADMIN_PASS  = os.getenv("VITE_ADMIN_PASSWORD", "")
+
 # ── Base URLs ────────────────────────────────────────────────────────────────
 TD_BASE       = "https://api.twelvedata.com/time_series"
 NEWSAPI_URL   = "https://newsapi.org/v2/everything"

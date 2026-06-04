@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+venv/
+static/fonts/
+*.png
+*.jpg
+*.ico
+node_modules/

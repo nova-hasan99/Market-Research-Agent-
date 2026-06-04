@@ -520,6 +520,10 @@ async function runAnalysis(payload, prefix) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return;
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || `Server error ${res.status}`);
@@ -657,15 +661,25 @@ function renderResults(d) {
 
   /* ── Stock-specific renders ─────────────────────────────────────────────── */
   if (isStock) {
+    renderEarningsProximityWarning(d);
     renderStockFundamentals(d);
     renderStockHistory(d);
     renderStockEarnings(d);
     renderStockAnalyst(d);
     renderStockInsider(d);
+    renderShortInterest(d);
+    renderInstitutionalOwnership(d);
+    renderOptionsSentiment(d);
   }
 
-  el('results').classList.remove('hidden');
-  el('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const resultsEl = el('results');
+  if (resultsEl) {
+    resultsEl.classList.remove('hidden');
+    // Only scroll on the research page (not inside a dashboard modal)
+    if (!document.getElementById('view-modal')) {
+      resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -727,64 +741,74 @@ function renderBreakdown(b, assetType) {
   let items;
 
   if (assetType === 'stock') {
-    const fund = b.fundamental        || {};
-    const ana  = b.analyst_consensus  || {};
-    const hist = b.historical_trend   || {};
-    const earn = b.earnings_quality   || {};
+    const fund = b.fundamental               || {};
+    const ana  = b.analyst_consensus         || {};
+    const inst = b.institutional_ownership   || {};
+    const hist = b.historical_trend          || {};
+    const earn = b.earnings_quality          || {};
 
     items = [
       {
         name: 'Daily\nTechnical',
-        pts:  b.daily_technical.points, max: 25, dir: b.daily_technical.direction, note: null,
-        tip:  dScoreCard('Daily Technical', b.daily_technical.points, 25, b.daily_technical.direction,
-                'Scored from 4 daily chart indicators: RSI, MACD, Moving Averages, and Trend. Full 25 pts when all 4 strongly agree.'),
+        pts:  b.daily_technical.points, max: 22, dir: b.daily_technical.direction, note: null,
+        tip:  dScoreCard('Daily Technical', b.daily_technical.points, 22, b.daily_technical.direction,
+                'Scored from 4 daily chart indicators: RSI, MACD, Moving Averages, and Trend. Full 22 pts when all 4 strongly agree.'),
       },
       {
         name: 'Hourly\nTechnical',
-        pts:  b.hourly_technical.points, max: 20, dir: b.hourly_technical.direction, note: null,
-        tip:  dScoreCard('Hourly Technical', b.hourly_technical.points, 20, b.hourly_technical.direction,
-                'Scored from 4 hourly chart indicators. Full 20 pts when all short-term signals strongly agree.'),
+        pts:  b.hourly_technical.points, max: 18, dir: b.hourly_technical.direction, note: null,
+        tip:  dScoreCard('Hourly Technical', b.hourly_technical.points, 18, b.hourly_technical.direction,
+                'Scored from 4 hourly chart indicators. Full 18 pts when all short-term signals strongly agree.'),
       },
       {
         name: 'Fundamental\nScore',
-        pts:  fund.points || 0, max: 15, dir: fund.direction || 'neutral',
+        pts:  fund.points || 0, max: 14, dir: fund.direction || 'neutral',
         note: fund.available ? (fund.direction === 'up' ? 'Bullish' : fund.direction === 'down' ? 'Bearish' : 'Neutral') : 'No Data',
-        tip:  dScoreCard('Fundamental Score', fund.points || 0, 15, fund.direction || 'neutral',
+        tip:  dScoreCard('Fundamental Score', fund.points || 0, 14, fund.direction || 'neutral',
                 fund.available
-                  ? `P/E: ${fund.pe_ratio != null ? fund.pe_ratio.toFixed(1) + 'x' : 'N/A'} | Revenue Growth: ${fund.revenue_growth != null ? (fund.revenue_growth*100).toFixed(1)+'%' : 'N/A'} | Profit Margin: ${fund.profit_margin != null ? (fund.profit_margin*100).toFixed(1)+'%' : 'N/A'}. Full 15 pts for low valuation + strong growth + high margin.`
+                  ? `P/E: ${fund.pe_ratio != null ? fund.pe_ratio.toFixed(1) + 'x' : 'N/A'} | Revenue Growth: ${fund.revenue_growth != null ? (fund.revenue_growth*100).toFixed(1)+'%' : 'N/A'} | Profit Margin: ${fund.profit_margin != null ? (fund.profit_margin*100).toFixed(1)+'%' : 'N/A'}. Full 14 pts for low valuation + strong growth + high margin.`
                   : 'Fundamental data unavailable. Requires Alpha Vantage API key.'),
       },
       {
         name: 'Analyst\nConsensus',
-        pts:  ana.points || 0, max: 12, dir: ana.direction || 'neutral',
+        pts:  ana.points || 0, max: 11, dir: ana.direction || 'neutral',
         note: ana.available ? (ana.consensus || 'No Data') : 'No Data',
-        tip:  dScoreCard('Analyst Consensus', ana.points || 0, 12, ana.direction || 'neutral',
+        tip:  dScoreCard('Analyst Consensus', ana.points || 0, 11, ana.direction || 'neutral',
                 ana.available
-                  ? `Consensus: ${ana.consensus} | Upside to mean target: ${ana.upside_pct != null ? ana.upside_pct.toFixed(1) + '%' : 'N/A'}. Full 12 pts when majority of analysts rate Strong Buy.`
+                  ? `Consensus: ${ana.consensus} | Upside to mean target: ${ana.upside_pct != null ? ana.upside_pct.toFixed(1) + '%' : 'N/A'}. Full 11 pts when majority rate Strong Buy.`
                   : 'Analyst data unavailable. Requires Finnhub API key.'),
       },
       {
+        name: 'Institutional\nOwnership',
+        pts:  inst.points || 0, max: 8, dir: inst.direction || 'neutral',
+        note: inst.available ? capFirst(inst.signal || 'neutral') : 'No Data',
+        tip:  dScoreCard('Institutional Ownership', inst.points || 0, 8, inst.direction || 'neutral',
+                inst.available
+                  ? `${inst.buy_count || 0} major holders accumulating vs ${inst.sell_count || 0} distributing. Full 8 pts when smart money is clearly accumulating.`
+                  : 'Institutional data unavailable. Requires Finnhub API key.'),
+      },
+      {
         name: 'News\nSentiment',
-        pts:  b.sentiment.points, max: 10, dir: b.sentiment.direction, note: b.sentiment.label,
-        tip:  dScoreCard('News Sentiment', b.sentiment.points, 10, b.sentiment.direction,
-                `Based on ${b.sentiment.articles} scanned news articles. Full 10 pts when sentiment is strongly bullish or bearish.`),
+        pts:  b.sentiment.points, max: 9, dir: b.sentiment.direction, note: b.sentiment.label,
+        tip:  dScoreCard('News Sentiment', b.sentiment.points, 9, b.sentiment.direction,
+                `Based on ${b.sentiment.articles} scanned news articles. Full 9 pts when sentiment is strongly bullish or bearish.`),
       },
       {
         name: 'Historical\nvs SPY',
-        pts:  hist.points || 0, max: 10, dir: hist.direction || 'neutral',
+        pts:  hist.points || 0, max: 9, dir: hist.direction || 'neutral',
         note: hist.vs_spy_1y != null ? `${hist.vs_spy_1y > 0 ? '+' : ''}${hist.vs_spy_1y.toFixed(0)}% vs SPY` : 'N/A',
-        tip:  dScoreCard('Historical vs SPY', hist.points || 0, 10, hist.direction || 'neutral',
+        tip:  dScoreCard('Historical vs SPY', hist.points || 0, 9, hist.direction || 'neutral',
                 hist.available
-                  ? `1Y return: ${hist.return_1y != null ? hist.return_1y.toFixed(1)+'%' : 'N/A'} | vs SPY: ${hist.vs_spy_1y != null ? (hist.vs_spy_1y > 0 ? '+' : '') + hist.vs_spy_1y.toFixed(1)+'%' : 'N/A'}. Full 10 pts for strongly outperforming SPY over 1 year.`
+                  ? `1Y return: ${hist.return_1y != null ? hist.return_1y.toFixed(1)+'%' : 'N/A'} | vs SPY: ${hist.vs_spy_1y != null ? (hist.vs_spy_1y > 0 ? '+' : '') + hist.vs_spy_1y.toFixed(1)+'%' : 'N/A'}. Full 9 pts for strongly outperforming SPY over 1 year.`
                   : 'Historical data unavailable.'),
       },
       {
         name: 'Earnings\nQuality',
-        pts:  earn.points || 0, max: 8, dir: earn.direction || 'neutral',
+        pts:  earn.points || 0, max: 9, dir: earn.direction || 'neutral',
         note: earn.available ? `${earn.beats}/${earn.beats + earn.misses} beats` : 'No Data',
-        tip:  dScoreCard('Earnings Quality', earn.points || 0, 8, earn.direction || 'neutral',
+        tip:  dScoreCard('Earnings Quality', earn.points || 0, 9, earn.direction || 'neutral',
                 earn.available
-                  ? `Beat ${earn.beats} of ${earn.beats + earn.misses} earnings estimates in the last 4 quarters. Full 8 pts for 4/4 beats.`
+                  ? `Beat ${earn.beats} of ${earn.beats + earn.misses} estimates in the last 4 quarters. Full 9 pts for 4/4 beats.`
                   : 'Earnings data unavailable. Requires Finnhub API key.'),
       },
     ];
@@ -1322,6 +1346,8 @@ function renderStockFundamentals(d) {
   if (!fund || !fund.available) {
     el('fund-sector-badge').textContent = 'No Data';
     el('fund-metrics-grid').innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:0.5rem 0">Fundamentals unavailable. Add ALPHA_VANTAGE_KEY to .env to enable.</div>';
+    el('week52-bar-section')?.classList.add('hidden');
+    el('pe-vs-sector-section')?.classList.add('hidden');
     return;
   }
 
@@ -1368,6 +1394,43 @@ function renderStockFundamentals(d) {
       ${m.note ? `<div class="fund-metric-note">${m.note}</div>` : ''}
     </div>`;
   }).join('');
+
+  // 52-Week range bar
+  const w52Sec = el('week52-bar-section');
+  const low  = fund.week52_low;
+  const high = fund.week52_high;
+  const price = parseFloat(d.last_price);
+  if (w52Sec && low != null && high != null && !isNaN(price) && high > low) {
+    const pct52 = Math.max(0, Math.min(100, (price - low) / (high - low) * 100));
+    const t52   = mkTip('52-Week Range', d52WRange(low, high, price));
+    w52Sec.innerHTML = `
+      <div class="week52-bar-label">52-Week Range Position</div>
+      <div class="week52-bar-track" data-tip="${t52}">
+        <div class="week52-bar-marker" style="left:${pct52.toFixed(1)}%"></div>
+      </div>
+      <div class="week52-bar-labels">
+        <span class="ret-down">$${Number(low).toFixed(2)} Low</span>
+        <span style="color:var(--muted)">${pct52.toFixed(0)}% of range</span>
+        <span class="ret-up">$${Number(high).toFixed(2)} High</span>
+      </div>`;
+    w52Sec.classList.remove('hidden');
+  } else if (w52Sec) {
+    w52Sec.classList.add('hidden');
+  }
+
+  // PE vs sector comparison
+  const pvSec = el('pe-vs-sector-section');
+  const pvPct  = fund.pe_vs_sector_pct;
+  const pvAvg  = fund.sector_pe_avg;
+  if (pvSec && pvPct != null && pvAvg != null) {
+    const pvCls  = pvPct > 15 ? 'pv-premium' : pvPct < -15 ? 'pv-discount' : 'pv-inline';
+    const pvDir  = pvPct > 15 ? `+${pvPct.toFixed(0)}% premium vs sector` : pvPct < -15 ? `${pvPct.toFixed(0)}% discount vs sector` : 'In line with sector';
+    const pvTip  = mkTip('Valuation vs Sector', dValuationVsSector(fund.pe_ratio, pvAvg, pvPct));
+    pvSec.innerHTML = `<span class="pv-label" data-tip="${pvTip}">P/E vs Sector Avg (${pvAvg}x): <span class="pv-value ${pvCls}">${pvDir}</span></span>`;
+    pvSec.classList.remove('hidden');
+  } else if (pvSec) {
+    pvSec.classList.add('hidden');
+  }
 }
 
 function renderStockHistory(d) {
@@ -1387,6 +1450,25 @@ function renderStockHistory(d) {
   setTip(el('history-card'), 'Historical Performance', dHistorical(h.vs_spy?.['1Y'], h.returns?.['1Y']));
 
   const periods = ['1M', '3M', '6M', '1Y', '2Y', '5Y'];
+  const fmt = v => v != null ? `${v > 0 ? '+' : ''}${v.toFixed(1)}%` : 'N/A';
+
+  // Sector relative strength row for 1M
+  const sectorEtf = h.sector_etf;
+  const sectorTip = sectorEtf ? mkTip('Sector Relative Strength', dSectorStrength(h.vs_sector_1m, sectorEtf)) : null;
+  const sectorRow = (sectorEtf && h.sector_1m != null) ? (() => {
+    const vs1m    = h.vs_sector_1m;
+    const svCls   = vs1m == null ? 'ret-neutral' : vs1m > 0 ? 'ret-up' : 'ret-down';
+    const etfCls  = h.sector_1m > 0 ? 'ret-up' : h.sector_1m < 0 ? 'ret-down' : 'ret-neutral';
+    const stk1m   = h.returns?.['1M'];
+    const stkCls  = stk1m == null ? 'ret-neutral' : stk1m > 0 ? 'ret-up' : 'ret-down';
+    return `<tr style="border-top:1px solid var(--border2)" data-tip="${sectorTip}">
+      <td>1M vs ${sectorEtf}</td>
+      <td class="${stkCls}">${fmt(stk1m)}</td>
+      <td class="${etfCls}">${fmt(h.sector_1m)}</td>
+      <td class="${svCls}">${fmt(vs1m)}</td>
+    </tr>`;
+  })() : '';
+
   el('hist-table-body').innerHTML = periods.map(p => {
     const ret  = h.returns?.[p];
     const spy  = h.spy_returns?.[p];
@@ -1394,14 +1476,13 @@ function renderStockHistory(d) {
     const rCls = ret  == null ? 'ret-neutral' : ret  > 0 ? 'ret-up'  : 'ret-down';
     const sCls = spy  == null ? 'ret-neutral' : spy  > 0 ? 'ret-up'  : 'ret-down';
     const vCls = vs   == null ? 'ret-neutral' : vs   > 0 ? 'ret-up'  : 'ret-down';
-    const fmt  = v => v != null ? `${v > 0 ? '+' : ''}${v.toFixed(1)}%` : 'N/A';
     return `<tr>
       <td>${p}</td>
       <td class="${rCls}">${fmt(ret)}</td>
       <td class="${sCls}">${fmt(spy)}</td>
       <td class="${vCls}">${fmt(vs)}</td>
     </tr>`;
-  }).join('');
+  }).join('') + sectorRow;
 }
 
 function renderStockEarnings(d) {
@@ -1524,4 +1605,198 @@ function renderStockInsider(d) {
       <td style="white-space:nowrap">${tx.date || 'N/A'}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="6" style="color:var(--muted)">No transactions</td></tr>';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADVANCED STOCK FEATURE TOOLTIP DESCRIPTIONS
+═══════════════════════════════════════════════════════════════════════════ */
+
+function dShortInterest(pct, dtc, squeezeRisk) {
+  const pctNote = pct == null ? 'Short interest data unavailable.' :
+    pct > 20 ? `${pct.toFixed(1)}% of the float is sold short. HIGH short interest. Any sharp price rise can trigger forced short covering (short squeeze).` :
+    pct > 10 ? `${pct.toFixed(1)}% of the float is sold short. MODERATE short interest. Watch for squeeze conditions if price breaks higher.` :
+    `${pct.toFixed(1)}% of the float is sold short. LOW short interest. Most participants are not betting against this stock.`;
+  const dtcNote = dtc != null ? `<br>Days to Cover: <strong>${dtc.toFixed(1)} days</strong> (how long at current volume to close all short positions).` : '';
+  const sqNote  = squeezeRisk ? '<br><strong>Squeeze Risk: HIGH.</strong> Short sellers must buy to cover if price rises, accelerating the move.' : '';
+  return `<strong>Short Interest</strong><br>${pctNote}${dtcNote}${sqNote}<small>Source: Finnhub. Updated bi-monthly. Above 20% is considered elevated short interest.</small>`;
+}
+
+function dInstitutional(signal, buyCount, sellCount) {
+  const total = (buyCount || 0) + (sellCount || 0);
+  const msg = signal === 'accumulation' ?
+    '<strong>Institutional Accumulation:</strong> More major holders are increasing positions than reducing. Smart money is broadly bullish.' :
+    signal === 'distribution' ?
+    '<strong>Institutional Distribution:</strong> More major holders are reducing positions than increasing. Smart money is broadly selling.' :
+    '<strong>Neutral Activity:</strong> Institutional buy and sell activity is roughly balanced. No clear smart money direction.';
+  return `<strong>Institutional Ownership</strong><br>${msg}<br>${buyCount} holders increasing vs ${sellCount} reducing among top ${total} tracked.<small>Source: Finnhub 13F filings. Positive QoQ Change = bought more shares since last quarter.</small>`;
+}
+
+function dOptionsSentiment(ratio, signal, callOI, putOI) {
+  const rNote = ratio == null ? 'Options data unavailable.' :
+    ratio >= 1.5 ? `Put/Call ratio of ${ratio.toFixed(2)} signals EXTREME FEAR. Heavy put buying. Historically a contrarian bullish signal at extremes.` :
+    ratio >= 1.0 ? `Put/Call ratio of ${ratio.toFixed(2)} signals BEARISH options positioning. More puts than calls are being bought.` :
+    ratio >= 0.7 ? `Put/Call ratio of ${ratio.toFixed(2)} signals NEUTRAL options positioning. Calls and puts roughly balanced.` :
+    `Put/Call ratio of ${ratio.toFixed(2)} signals BULLISH options positioning. Significantly more call buying than put buying.`;
+  const oiNote = (callOI || putOI) ? `<br>Call OI: ${callOI ? callOI.toLocaleString() : 'N/A'} | Put OI: ${putOI ? putOI.toLocaleString() : 'N/A'}` : '';
+  return `<strong>Options Sentiment (Put/Call Ratio)</strong><br>${rNote}${oiNote}<small>Ratio = Total Put OI / Total Call OI. Below 0.7 = bullish. Above 1.0 = bearish. Above 1.5 = extreme fear.</small>`;
+}
+
+function dSectorStrength(vs1M, etf) {
+  const msg = vs1M == null ? 'Sector performance data unavailable.' :
+    vs1M > 5  ? `Outperforming sector ETF (${etf}) by ${vs1M.toFixed(1)}% this month. Strong relative strength vs sector peers.` :
+    vs1M > 0  ? `Slightly outperforming sector ETF (${etf}) by ${vs1M.toFixed(1)}% this month.` :
+    vs1M > -5 ? `Slightly underperforming sector ETF (${etf}) by ${Math.abs(vs1M).toFixed(1)}% this month.` :
+    `Significantly underperforming sector ETF (${etf}) by ${Math.abs(vs1M).toFixed(1)}% this month. Weak relative strength.`;
+  return `<strong>Sector Relative Strength (1M)</strong><br>${msg}<small>Compares the stock's 1-month return to its benchmark sector ETF. Positive = outperforming sector peers.</small>`;
+}
+
+function dValuationVsSector(pe, sectorPe, pct) {
+  const msg = pct == null ? 'Sector P/E comparison unavailable.' :
+    pct > 50 ? `P/E of ${pe != null ? pe.toFixed(1) : 'N/A'}x is ${pct.toFixed(0)}% ABOVE sector average (${sectorPe}x). Significant premium. Any earnings miss risks a sharp de-rating.` :
+    pct > 15 ? `P/E of ${pe != null ? pe.toFixed(1) : 'N/A'}x is ${pct.toFixed(0)}% above sector average (${sectorPe}x). Modest premium; acceptable if growth justifies it.` :
+    pct > -15 ? `P/E of ${pe != null ? pe.toFixed(1) : 'N/A'}x is roughly in line with sector average (${sectorPe}x). Fair valuation relative to peers.` :
+    `P/E of ${pe != null ? pe.toFixed(1) : 'N/A'}x is ${Math.abs(pct).toFixed(0)}% BELOW sector average (${sectorPe}x). Discount to peers.`;
+  return `<strong>Valuation vs Sector Average P/E</strong><br>${msg}<small>Sector average P/E is based on typical historical ranges. Extreme premiums increase reversal risk.</small>`;
+}
+
+function d52WRange(low, high, price) {
+  const range = high - low;
+  const pct   = range > 0 ? Math.round((price - low) / range * 100) : 0;
+  const pos   = pct >= 90 ? 'near the 52-week HIGH' : pct >= 70 ? 'in the upper range' :
+                pct >= 30 ? 'in the mid-range' : pct >= 10 ? 'in the lower range' : 'near the 52-week LOW';
+  return `<strong>52-Week Range Position</strong><br>Current price is ${pos} at <strong>${pct}%</strong> of the annual trading range.<br>52W Low: $${Number(low).toFixed(2)} | 52W High: $${Number(high).toFixed(2)}<small>Near 52W high with strong momentum may signal breakout. Near 52W low may be a value opportunity or downtrend.</small>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADVANCED STOCK RENDER FUNCTIONS
+═══════════════════════════════════════════════════════════════════════════ */
+
+function renderEarningsProximityWarning(d) {
+  const banner = el('earnings-warning-banner');
+  if (!banner) return;
+  const earn = d.earnings;
+  if (!earn || !earn.next_date) {
+    banner.className = 'earnings-warning-banner hidden stock-only'; return;
+  }
+  let daysAway;
+  try {
+    const nextD = new Date(earn.next_date + 'T00:00:00Z');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    daysAway = Math.round((nextD - today) / 86400000);
+  } catch { banner.className = 'earnings-warning-banner hidden stock-only'; return; }
+
+  if (daysAway < 0 || daysAway > 30) {
+    banner.className = 'earnings-warning-banner hidden stock-only'; return;
+  }
+  if (daysAway <= 14) {
+    banner.className = 'earnings-warning-banner red stock-only';
+    banner.innerHTML = `<span>&#9888;</span> Earnings in <strong>${daysAway} day${daysAway !== 1 ? 's' : ''}</strong> (${earn.next_date}) - High volatility risk. Consider reducing exposure.`;
+  } else {
+    banner.className = 'earnings-warning-banner orange stock-only';
+    banner.innerHTML = `<span>&#128276;</span> Earnings in <strong>${daysAway} days</strong> (${earn.next_date}) - Monitor for pre-earnings positioning.`;
+  }
+}
+
+function renderShortInterest(d) {
+  const si    = d.short_interest;
+  const badge = el('si-badge');
+  const main  = el('si-main-stat');
+  if (!badge || !main) return;
+
+  if (!si || !si.available) {
+    badge.textContent = 'No Data'; badge.className = 'dir-badge neutral';
+    main.textContent  = 'N/A'; main.className = 'si-main-stat si-unknown';
+    setVal('si-pct',    'N/A', 'neutral');
+    setVal('si-dtc',    'N/A', 'neutral');
+    setVal('si-squeeze','N/A', 'neutral');
+    return;
+  }
+
+  const pct    = si.short_percent;
+  const dtc    = si.days_to_cover;
+  const signal = si.signal || 'unknown';
+  const sigDir = signal === 'high' ? 'down' : signal === 'moderate' ? 'neutral' : signal === 'low' ? 'up' : 'neutral';
+
+  badge.textContent = signal === 'high' ? 'High Short' : signal === 'moderate' ? 'Moderate' : signal === 'low' ? 'Low Short' : 'Unknown';
+  badge.className   = `dir-badge ${sigDir}`;
+  main.textContent  = pct != null ? `${pct.toFixed(1)}% Float Short` : 'N/A';
+  main.className    = `si-main-stat si-${signal}`;
+
+  setVal('si-pct',    pct != null ? `${pct.toFixed(1)}%` : 'N/A', sigDir);
+  setVal('si-dtc',    dtc != null ? `${dtc.toFixed(1)} days` : 'N/A', 'neutral');
+  setVal('si-squeeze', si.squeeze_risk ? 'YES - Squeeze Risk' : 'No', si.squeeze_risk ? 'down' : 'up');
+
+  const siSrc = si.source ? ` <span style="font-size:0.7rem;color:var(--muted);font-weight:400">via ${si.source}</span>` : '';
+  el('short-interest-card').querySelector('.card-title').innerHTML = `📉 Short Interest${siSrc}`;
+  setTip(el('short-interest-card'), 'Short Interest', dShortInterest(pct, dtc, si.squeeze_risk));
+}
+
+function renderInstitutionalOwnership(d) {
+  const inst  = d.institutional;
+  const badge = el('inst-badge');
+  const sumEl = el('inst-summary');
+  if (!badge || !sumEl) return;
+
+  if (!inst || !inst.available) {
+    badge.textContent = 'No Data'; badge.className = 'dir-badge neutral';
+    sumEl.textContent = 'Institutional ownership data unavailable.';
+    el('inst-table-body').innerHTML = '<tr><td colspan="3" style="color:var(--muted);text-align:center">No data. Requires Finnhub API key.</td></tr>';
+    return;
+  }
+
+  const signal = inst.signal || 'neutral';
+  const sigDir = signal === 'accumulation' ? 'up' : signal === 'distribution' ? 'down' : 'neutral';
+  badge.textContent = capFirst(signal);
+  badge.className   = `dir-badge ${sigDir}`;
+
+  const bc = inst.buy_count || 0, sc = inst.sell_count || 0;
+  sumEl.textContent = `${bc} major holders increasing vs ${sc} reducing positions (top 20 tracked).`;
+  const instSrc = inst.source ? ` <span style="font-size:0.7rem;color:var(--muted);font-weight:400">via ${inst.source}</span>` : '';
+  el('institutional-card').querySelector('.card-title').innerHTML = `🏛 Institutional Ownership${instSrc}`;
+  if (inst.source === 'Yahoo Finance') {
+    sumEl.textContent = `Top ${(inst.top_holders || []).length} holders shown. Direction data unavailable (Yahoo Finance fallback - no QoQ change).`;
+  }
+  setTip(el('institutional-card'), 'Institutional Ownership', dInstitutional(signal, bc, sc));
+
+  el('inst-table-body').innerHTML = (inst.top_holders || []).map(h => {
+    const chgCls  = h.change > 0 ? 'ret-up' : h.change < 0 ? 'ret-down' : 'ret-neutral';
+    const chgText = h.change !== 0 ? `${h.change > 0 ? '+' : ''}${h.change.toLocaleString()}` : 'Unchanged';
+    return `<tr>
+      <td style="font-size:0.8rem">${h.name}</td>
+      <td>${h.percent.toFixed(2)}%</td>
+      <td class="${chgCls}" style="white-space:nowrap">${chgText}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="3" style="color:var(--muted)">No holder data</td></tr>';
+}
+
+function renderOptionsSentiment(d) {
+  const opt   = d.options_sentiment;
+  const badge = el('opt-badge');
+  const main  = el('opt-main');
+  if (!badge || !main) return;
+
+  if (!opt || !opt.available) {
+    badge.textContent = 'No Data'; badge.className = 'dir-badge neutral';
+    main.textContent  = 'Options data unavailable.'; main.className = 'opt-main opt-neutral';
+    setVal('opt-call-oi', 'N/A', 'neutral');
+    setVal('opt-put-oi',  'N/A', 'neutral');
+    setVal('opt-ratio',   'N/A', 'neutral');
+    return;
+  }
+
+  const signal = opt.signal || 'neutral';
+  const sigDir = signal === 'bullish' ? 'up' : (signal === 'bearish' || signal === 'extreme_fear') ? 'down' : 'neutral';
+  badge.textContent = opt.label || capFirst(signal);
+  badge.className   = `dir-badge ${sigDir}`;
+  main.textContent  = `P/C Ratio: ${opt.ratio != null ? opt.ratio.toFixed(2) : 'N/A'}`;
+  main.className    = `opt-main opt-${signal.replace('_', '-')}`;
+
+  const fmtOI = v => v != null ? (v >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : v.toLocaleString()) : 'N/A';
+  setVal('opt-call-oi', fmtOI(opt.call_oi), 'up');
+  setVal('opt-put-oi',  fmtOI(opt.put_oi),  'down');
+  setVal('opt-ratio',   opt.ratio != null ? opt.ratio.toFixed(2) : 'N/A', sigDir);
+
+  const optSrc = opt.source ? ` <span style="font-size:0.7rem;color:var(--muted);font-weight:400">via ${opt.source}</span>` : '';
+  el('options-sent-card').querySelector('.card-title').innerHTML = `⚙ Options Sentiment (Put/Call Ratio)${optSrc}`;
+  setTip(el('options-sent-card'), 'Options Sentiment', dOptionsSentiment(opt.ratio, signal, opt.call_oi, opt.put_oi));
 }

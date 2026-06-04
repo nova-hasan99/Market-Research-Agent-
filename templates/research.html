@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MarketLens — Research</title>
+  <title>MarketLens Research</title>
   <link rel="stylesheet" href="/static/css/style.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
@@ -19,6 +19,14 @@
       <div class="nav-links">
         <a href="/" class="nav-btn-ghost">Home</a>
         <a href="/api/providers" target="_blank" class="nav-btn-ghost">API Status</a>
+        {% if user %}
+        <a href="/dashboard" class="nav-btn-ghost">Dashboard</a>
+        <span style="font-size:0.82rem;color:var(--muted);padding:0 0.25rem">{{ user.name }}</span>
+        <a href="/logout" class="nav-btn-ghost">Logout</a>
+        {% else %}
+        <a href="/login" class="nav-btn-ghost">Login</a>
+        <a href="/register" class="nav-btn-primary">Register</a>
+        {% endif %}
         <!-- Timezone Picker -->
         <div class="tz-picker" id="tz-picker">
           <button class="tz-trigger" onclick="toggleTZPanel()">
@@ -55,28 +63,28 @@
           <div class="form-group">
             <label>Base Currency</label>
             <select id="fx-base">
-              <option value="EUR">EUR — Euro</option>
-              <option value="GBP">GBP — British Pound</option>
-              <option value="USD">USD — US Dollar</option>
-              <option value="AUD">AUD — Australian Dollar</option>
-              <option value="NZD">NZD — New Zealand Dollar</option>
-              <option value="CAD">CAD — Canadian Dollar</option>
-              <option value="CHF">CHF — Swiss Franc</option>
-              <option value="JPY">JPY — Japanese Yen</option>
+              <option value="EUR">EUR - Euro</option>
+              <option value="GBP">GBP - British Pound</option>
+              <option value="USD">USD - US Dollar</option>
+              <option value="AUD">AUD - Australian Dollar</option>
+              <option value="NZD">NZD - New Zealand Dollar</option>
+              <option value="CAD">CAD - Canadian Dollar</option>
+              <option value="CHF">CHF - Swiss Franc</option>
+              <option value="JPY">JPY - Japanese Yen</option>
             </select>
           </div>
           <div class="form-sep">/</div>
           <div class="form-group">
             <label>Quote Currency</label>
             <select id="fx-quote">
-              <option value="USD">USD — US Dollar</option>
-              <option value="EUR">EUR — Euro</option>
-              <option value="GBP">GBP — British Pound</option>
-              <option value="JPY">JPY — Japanese Yen</option>
-              <option value="AUD">AUD — Australian Dollar</option>
-              <option value="CAD">CAD — Canadian Dollar</option>
-              <option value="CHF">CHF — Swiss Franc</option>
-              <option value="NZD">NZD — New Zealand Dollar</option>
+              <option value="USD">USD - US Dollar</option>
+              <option value="EUR">EUR - Euro</option>
+              <option value="GBP">GBP - British Pound</option>
+              <option value="JPY">JPY - Japanese Yen</option>
+              <option value="AUD">AUD - Australian Dollar</option>
+              <option value="CAD">CAD - Canadian Dollar</option>
+              <option value="CHF">CHF - Swiss Franc</option>
+              <option value="NZD">NZD - New Zealand Dollar</option>
             </select>
           </div>
           <button class="analyze-btn" onclick="analyzeForex()">
@@ -146,15 +154,18 @@
     <!-- Results Section -->
     <div id="results" class="results hidden">
 
+      <!-- Earnings Proximity Warning (stock only) -->
+      <div id="earnings-warning-banner" class="earnings-warning-banner hidden stock-only"></div>
+
       <!-- Row 1: Header + Score + Quick Stats -->
       <div class="results-top">
 
         <!-- Asset Header -->
         <div class="card header-card">
-          <div class="asset-name" id="r-asset">—</div>
-          <div class="asset-price" id="r-price">—</div>
-          <div id="r-bias-badge" class="bias-badge">—</div>
-          <div class="asset-meta" id="r-meta">—</div>
+          <div class="asset-name" id="r-asset">-</div>
+          <div class="asset-price" id="r-price">-</div>
+          <div id="r-bias-badge" class="bias-badge">-</div>
+          <div class="asset-meta" id="r-meta">-</div>
         </div>
 
         <!-- Score Gauge -->
@@ -174,7 +185,7 @@
                   stroke-dasharray="267" stroke-dashoffset="267"
                   style="transition: stroke-dashoffset 1s ease" />
             <text id="gauge-num" x="100" y="88" text-anchor="middle"
-                  font-size="34" fill="#f9fafb" font-weight="700" font-family="Inter">—</text>
+                  font-size="34" fill="#f9fafb" font-weight="700" font-family="Inter">-</text>
             <text x="100" y="108" text-anchor="middle"
                   font-size="10" fill="#6b7280" font-family="Inter">ALIGNMENT SCORE / 100</text>
           </svg>
@@ -185,12 +196,12 @@
         <div class="card quick-stats-card">
           <div class="qs-title">Key Indicators</div>
           <table class="qs-table">
-            <tr><td class="qs-label">Daily RSI</td><td class="qs-val" id="qs-drsi">—</td></tr>
-            <tr><td class="qs-label">Hourly RSI</td><td class="qs-val" id="qs-hrsi">—</td></tr>
-            <tr><td class="qs-label">Daily Trend</td><td class="qs-val" id="qs-dtrend">—</td></tr>
-            <tr><td class="qs-label">Daily MACD</td><td class="qs-val" id="qs-dmacd">—</td></tr>
-            <tr><td class="qs-label">Volatility ATR%</td><td class="qs-val" id="qs-atr">—</td></tr>
-            <tr><td class="qs-label">Sentiment</td><td class="qs-val" id="qs-sent">—</td></tr>
+            <tr><td class="qs-label">Daily RSI</td><td class="qs-val" id="qs-drsi">-</td></tr>
+            <tr><td class="qs-label">Hourly RSI</td><td class="qs-val" id="qs-hrsi">-</td></tr>
+            <tr><td class="qs-label">Daily Trend</td><td class="qs-val" id="qs-dtrend">-</td></tr>
+            <tr><td class="qs-label">Daily MACD</td><td class="qs-val" id="qs-dmacd">-</td></tr>
+            <tr><td class="qs-label">Volatility ATR%</td><td class="qs-val" id="qs-atr">-</td></tr>
+            <tr><td class="qs-label">Sentiment</td><td class="qs-val" id="qs-sent">-</td></tr>
           </table>
         </div>
 
@@ -203,7 +214,7 @@
             <span class="ks-icon">⚡</span>
             <div class="ks-content">
               <div class="ks-label">Key Signal</div>
-              <div id="ks-text" class="ks-text">—</div>
+              <div id="ks-text" class="ks-text">-</div>
             </div>
           </div>
           <div class="ks-divider"></div>
@@ -211,7 +222,7 @@
             <span class="ks-icon">⚠</span>
             <div class="ks-content">
               <div class="ks-label">Main Risk</div>
-              <div id="ks-risk" class="ks-risk">—</div>
+              <div id="ks-risk" class="ks-risk">-</div>
             </div>
           </div>
         </div>
@@ -221,7 +232,7 @@
       <div class="card tg-card" id="trade-guide-card">
         <div class="card-header">
           <span class="card-title">⚡ Trade Guidance</span>
-          <span id="tg-signal-badge" class="tg-signal-badge">—</span>
+          <span id="tg-signal-badge" class="tg-signal-badge">-</span>
         </div>
 
         <div class="tg-body">
@@ -233,8 +244,8 @@
               <div id="tg-fill-down" class="tg-fill-down" style="width:50%"></div>
             </div>
             <div class="tg-prob-labels">
-              <span id="tg-lbl-up"   class="tg-lbl-up">—</span>
-              <span id="tg-lbl-down" class="tg-lbl-down">—</span>
+              <span id="tg-lbl-up"   class="tg-lbl-up">-</span>
+              <span id="tg-lbl-down" class="tg-lbl-down">-</span>
             </div>
 
             <div class="tg-section-label" style="margin-top:1rem">Suggested Trade Levels</div>
@@ -245,9 +256,9 @@
           <div class="tg-right">
             <div class="tg-conf-box">
               <div class="tg-conf-label">Confidence</div>
-              <div id="tg-conf-value" class="tg-conf-value">—</div>
-              <div id="tg-conf-score" class="tg-conf-score">— / 100</div>
-              <div id="tg-conf-advice" class="tg-conf-advice">—</div>
+              <div id="tg-conf-value" class="tg-conf-value">-</div>
+              <div id="tg-conf-score" class="tg-conf-score">- / 100</div>
+              <div id="tg-conf-advice" class="tg-conf-advice">-</div>
             </div>
             <div class="tg-disclaimer">
               These are calculated reference levels based on signal analysis.<br>
@@ -261,9 +272,9 @@
       <div class="card ai-card">
         <div class="card-header">
           <span class="card-title">🤖 AI Market Summary</span>
-          <span class="ai-provider-badge" id="ai-provider-badge">—</span>
+          <span class="ai-provider-badge" id="ai-provider-badge">-</span>
         </div>
-        <div class="ai-text" id="ai-summary-text">—</div>
+        <div class="ai-text" id="ai-summary-text">-</div>
       </div>
 
       <!-- Technical Analysis Tables -->
@@ -272,7 +283,7 @@
         <div class="card">
           <div class="card-header">
             <span class="card-title">📊 Daily Technical</span>
-            <span id="daily-dir-badge" class="dir-badge">—</span>
+            <span id="daily-dir-badge" class="dir-badge">-</span>
           </div>
           <table class="data-table">
             <thead><tr><th>Indicator</th><th>Value</th><th>Signal</th></tr></thead>
@@ -281,11 +292,11 @@
           <div class="levels-row">
             <div class="level-box">
               <span class="level-label">Support</span>
-              <span class="level-val down" id="d-support">—</span>
+              <span class="level-val down" id="d-support">-</span>
             </div>
             <div class="level-box">
               <span class="level-label">Resistance</span>
-              <span class="level-val up" id="d-resistance">—</span>
+              <span class="level-val up" id="d-resistance">-</span>
             </div>
           </div>
         </div>
@@ -293,7 +304,7 @@
         <div class="card">
           <div class="card-header">
             <span class="card-title">⏱ Hourly Technical</span>
-            <span id="hourly-dir-badge" class="dir-badge">—</span>
+            <span id="hourly-dir-badge" class="dir-badge">-</span>
           </div>
           <table class="data-table">
             <thead><tr><th>Indicator</th><th>Value</th><th>Signal</th></tr></thead>
@@ -302,11 +313,11 @@
           <div class="levels-row">
             <div class="level-box">
               <span class="level-label">Support</span>
-              <span class="level-val down" id="h-support">—</span>
+              <span class="level-val down" id="h-support">-</span>
             </div>
             <div class="level-box">
               <span class="level-label">Resistance</span>
-              <span class="level-val up" id="h-resistance">—</span>
+              <span class="level-val up" id="h-resistance">-</span>
             </div>
           </div>
         </div>
@@ -327,18 +338,20 @@
         <div class="card" id="fundamentals-card">
           <div class="card-header">
             <span class="card-title">📋 Company Fundamentals</span>
-            <span id="fund-sector-badge" class="dir-badge neutral">—</span>
+            <span id="fund-sector-badge" class="dir-badge neutral">-</span>
           </div>
-          <div id="fund-company-desc" class="fund-company-desc hidden">—</div>
+          <div id="fund-company-desc" class="fund-company-desc hidden">-</div>
           <div id="fund-metrics-grid" class="fund-metrics-grid"></div>
+          <div id="week52-bar-section" class="week52-bar-wrap hidden"></div>
+          <div id="pe-vs-sector-section" class="pe-vs-sector hidden"></div>
         </div>
 
         <div class="card" id="history-card">
           <div class="card-header">
             <span class="card-title">📈 Historical Performance vs SPY</span>
-            <span id="hist-dir-badge" class="dir-badge">—</span>
+            <span id="hist-dir-badge" class="dir-badge">-</span>
           </div>
-          <div id="hist-label" class="hist-label">—</div>
+          <div id="hist-label" class="hist-label">-</div>
           <table class="data-table" style="margin-top:0.75rem">
             <thead><tr><th>Period</th><th>Stock</th><th>SPY</th><th>vs SPY</th></tr></thead>
             <tbody id="hist-table-body"></tbody>
@@ -353,9 +366,9 @@
         <div class="card" id="earnings-card">
           <div class="card-header">
             <span class="card-title">📊 Earnings History (Last 4Q)</span>
-            <span id="earnings-record-badge" class="dir-badge">—</span>
+            <span id="earnings-record-badge" class="dir-badge">-</span>
           </div>
-          <div id="earnings-next-date" class="earnings-next-date">—</div>
+          <div id="earnings-next-date" class="earnings-next-date">-</div>
           <table class="data-table" style="margin-top:0.6rem">
             <thead><tr><th>Quarter</th><th>Actual</th><th>Estimate</th><th>Surprise</th></tr></thead>
             <tbody id="earnings-table-body"></tbody>
@@ -365,13 +378,13 @@
         <div class="card" id="analyst-card">
           <div class="card-header">
             <span class="card-title">🎯 Analyst Consensus</span>
-            <span id="analyst-consensus-badge" class="dir-badge">—</span>
+            <span id="analyst-consensus-badge" class="dir-badge">-</span>
           </div>
-          <div id="analyst-target" class="analyst-target">—</div>
+          <div id="analyst-target" class="analyst-target">-</div>
           <div class="analyst-bar-wrap" id="analyst-bar-wrap">
             <div id="analyst-bar-fill" class="analyst-bar-fill"></div>
           </div>
-          <div id="analyst-bar-legend" class="analyst-bar-legend">—</div>
+          <div id="analyst-bar-legend" class="analyst-bar-legend">-</div>
           <table class="data-table" style="margin-top:0.75rem">
             <tbody id="analyst-ratings-body"></tbody>
           </table>
@@ -383,12 +396,60 @@
       <div class="card stock-only" id="insider-card">
         <div class="card-header">
           <span class="card-title">🏛 Recent Insider Transactions</span>
-          <span id="insider-summary-badge" class="dir-badge">—</span>
+          <span id="insider-summary-badge" class="dir-badge">-</span>
         </div>
-        <div id="insider-summary" class="insider-summary">—</div>
+        <div id="insider-summary" class="insider-summary">-</div>
         <table class="data-table" style="margin-top:0.75rem">
           <thead><tr><th>Name / Title</th><th>Type</th><th>Shares</th><th>Price</th><th>Est. Value</th><th>Date</th></tr></thead>
           <tbody id="insider-table-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Stock: Short Interest + Institutional Ownership (stock only) -->
+      <div class="two-col stock-only" id="stock-short-inst-row">
+
+        <div class="card" id="short-interest-card">
+          <div class="card-header">
+            <span class="card-title">📉 Short Interest</span>
+            <span id="si-badge" class="dir-badge">-</span>
+          </div>
+          <div class="si-main-stat" id="si-main-stat">-</div>
+          <table class="data-table" style="margin-top:0.75rem">
+            <tbody>
+              <tr><td>Short % Float</td><td class="qs-val" id="si-pct">-</td></tr>
+              <tr><td>Days to Cover</td><td class="qs-val" id="si-dtc">-</td></tr>
+              <tr><td>Squeeze Risk</td><td class="qs-val" id="si-squeeze">-</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card" id="institutional-card">
+          <div class="card-header">
+            <span class="card-title">🏛 Institutional Ownership</span>
+            <span id="inst-badge" class="dir-badge">-</span>
+          </div>
+          <div class="inst-summary" id="inst-summary">-</div>
+          <table class="data-table" style="margin-top:0.75rem">
+            <thead><tr><th>Holder</th><th>% Shares</th><th>QoQ Change</th></tr></thead>
+            <tbody id="inst-table-body"></tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- Stock: Options Sentiment (stock only) -->
+      <div class="card stock-only" id="options-sent-card">
+        <div class="card-header">
+          <span class="card-title">⚙ Options Sentiment (Put/Call Ratio)</span>
+          <span id="opt-badge" class="dir-badge">-</span>
+        </div>
+        <div class="opt-main" id="opt-main">-</div>
+        <table class="data-table" style="margin-top:0.75rem">
+          <tbody>
+            <tr><td>Total Call OI</td><td class="qs-val" id="opt-call-oi">-</td></tr>
+            <tr><td>Total Put OI</td><td class="qs-val" id="opt-put-oi">-</td></tr>
+            <tr><td>Put/Call Ratio</td><td class="qs-val" id="opt-ratio">-</td></tr>
+          </tbody>
         </table>
       </div>
 
@@ -398,14 +459,14 @@
         <div class="card" id="cot-card" style="display:none">
           <div class="card-header">
             <span class="card-title">🏦 Institutional Positioning (COT)</span>
-            <span id="cot-dir-badge" class="dir-badge">—</span>
+            <span id="cot-dir-badge" class="dir-badge">-</span>
           </div>
-          <div class="cot-net" id="cot-net">—</div>
+          <div class="cot-net" id="cot-net">-</div>
           <table class="data-table" style="margin-top:0.75rem">
             <tbody>
-              <tr><td>Net Position</td><td class="qs-val" id="cot-net-val">—</td></tr>
-              <tr><td>Weekly Trend</td><td class="qs-val" id="cot-trend">—</td></tr>
-              <tr><td>Currency</td><td class="qs-val" id="cot-currency">—</td></tr>
+              <tr><td>Net Position</td><td class="qs-val" id="cot-net-val">-</td></tr>
+              <tr><td>Weekly Trend</td><td class="qs-val" id="cot-trend">-</td></tr>
+              <tr><td>Currency</td><td class="qs-val" id="cot-currency">-</td></tr>
             </tbody>
           </table>
         </div>
@@ -413,14 +474,14 @@
         <div class="card" id="regime-card">
           <div class="card-header">
             <span class="card-title">📈 Volatility Regime</span>
-            <span id="regime-badge" class="regime-badge">—</span>
+            <span id="regime-badge" class="regime-badge">-</span>
           </div>
-          <div class="regime-label" id="regime-label">—</div>
+          <div class="regime-label" id="regime-label">-</div>
           <table class="data-table" style="margin-top:0.75rem">
             <tbody>
-              <tr><td>ADX (14)</td><td class="qs-val" id="regime-adx">—</td></tr>
-              <tr><td>BB Width</td><td class="qs-val" id="regime-bb">—</td></tr>
-              <tr><td>BB Expanding</td><td class="qs-val" id="regime-expanding">—</td></tr>
+              <tr><td>ADX (14)</td><td class="qs-val" id="regime-adx">-</td></tr>
+              <tr><td>BB Width</td><td class="qs-val" id="regime-bb">-</td></tr>
+              <tr><td>BB Expanding</td><td class="qs-val" id="regime-expanding">-</td></tr>
             </tbody>
           </table>
         </div>
@@ -432,11 +493,11 @@
 
         <div class="card" id="intermarket-card">
           <div class="card-title">🌐 Intermarket (USD Strength)</div>
-          <div class="inter-dollar" id="inter-dollar">—</div>
+          <div class="inter-dollar" id="inter-dollar">-</div>
           <table class="data-table" style="margin-top:0.75rem;">
             <tbody>
-              <tr><td>EUR/USD Trend</td><td class="qs-val" id="inter-eurusd">—</td></tr>
-              <tr><td>USD/JPY Trend</td><td class="qs-val" id="inter-usdjpy">—</td></tr>
+              <tr><td>EUR/USD Trend</td><td class="qs-val" id="inter-eurusd">-</td></tr>
+              <tr><td>USD/JPY Trend</td><td class="qs-val" id="inter-usdjpy">-</td></tr>
             </tbody>
           </table>
           <!-- Yield Differential -->
@@ -444,22 +505,22 @@
             <div class="yd-header">Yield Differential (US10Y vs DE10Y)</div>
             <table class="data-table" style="margin-top:0.5rem">
               <tbody>
-                <tr><td>US 10Y</td><td class="qs-val" id="yd-us10y">—</td></tr>
-                <tr><td>DE 10Y</td><td class="qs-val" id="yd-de10y">—</td></tr>
-                <tr><td>Spread</td><td class="qs-val" id="yd-diff">—</td></tr>
+                <tr><td>US 10Y</td><td class="qs-val" id="yd-us10y">-</td></tr>
+                <tr><td>DE 10Y</td><td class="qs-val" id="yd-de10y">-</td></tr>
+                <tr><td>Spread</td><td class="qs-val" id="yd-diff">-</td></tr>
               </tbody>
             </table>
-            <div id="yd-label" class="yd-dir-label">—</div>
+            <div id="yd-label" class="yd-dir-label">-</div>
           </div>
         </div>
 
         <div class="card">
           <div class="card-title">📰 News Sentiment</div>
-          <div class="sent-score" id="sent-label">—</div>
+          <div class="sent-score" id="sent-label">-</div>
           <table class="data-table" style="margin-top:0.75rem;">
             <tbody>
-              <tr><td>Score</td><td class="qs-val" id="sent-score">—</td></tr>
-              <tr><td>Articles Scanned</td><td class="qs-val" id="sent-articles">—</td></tr>
+              <tr><td>Score</td><td class="qs-val" id="sent-score">-</td></tr>
+              <tr><td>Articles Scanned</td><td class="qs-val" id="sent-articles">-</td></tr>
             </tbody>
           </table>
           <!-- Top Headlines -->
@@ -493,18 +554,54 @@
       <!-- Data Providers Footer -->
       <div class="card provider-footer">
         <span class="pf-label">Data Sources:</span>
-        <span id="pf-data">—</span>
+        <span id="pf-data">-</span>
         <span class="pf-sep">·</span>
         <span class="pf-label">AI:</span>
-        <span id="pf-ai">—</span>
+        <span id="pf-ai">-</span>
         <span class="pf-sep">·</span>
         <span class="pf-label">Generated:</span>
-        <span id="pf-time">—</span>
+        <span id="pf-time">-</span>
       </div>
 
     </div><!-- /results -->
   </main>
 
+  <script>
+    window.__USER_LOGGED_IN__ = {{ 'true' if user else 'false' }};
+  </script>
   <script src="/static/js/app.js"></script>
+  <script>
+    /* "Saved to Dashboard" toast after analysis completes */
+    (function() {
+      const origRender = window.renderResults;
+      if (typeof origRender !== 'function') return;
+      window.renderResults = function(d) {
+        origRender(d);
+        if (window.__USER_LOGGED_IN__) {
+          _showSavedToast();
+        }
+      };
+
+      let _toastEl = null;
+      function _showSavedToast() {
+        if (!_toastEl) {
+          _toastEl = document.createElement('div');
+          _toastEl.style.cssText = [
+            'position:fixed','bottom:1.5rem','right:1.5rem','z-index:2000',
+            'background:var(--card2)','border:1px solid rgba(16,185,129,0.4)',
+            'border-radius:9px','padding:0.65rem 1.1rem',
+            'font-size:0.875rem','color:var(--up)',
+            'box-shadow:0 8px 30px rgba(0,0,0,0.5)',
+            'transition:opacity 0.3s'
+          ].join(';');
+          document.body.appendChild(_toastEl);
+        }
+        _toastEl.textContent = 'Analysis saved to Dashboard';
+        _toastEl.style.opacity = '1';
+        clearTimeout(_toastEl._timer);
+        _toastEl._timer = setTimeout(() => { _toastEl.style.opacity = '0'; }, 3500);
+      }
+    })();
+  </script>
 </body>
 </html>

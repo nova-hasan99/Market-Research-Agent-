@@ -37,7 +37,21 @@
       "Bash(curl -s -X POST http://localhost:8000/api/analyze -H 'Content-Type: application/json' -d '{\"asset_type\":\"forex\",\"symbol\":\"EUR\",\"quote\":\"USD\"}')",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Score:', d.get\\('score'\\), 'Bias:', d.get\\('bias'\\), 'Asset:', d.get\\('asset'\\)\\); print\\('Breakdown keys:', list\\(d.get\\('breakdown',{}\\).keys\\(\\)\\)\\); print\\('COT available:', d.get\\('cot',{}\\).get\\('available'\\)\\); print\\('Yield diff:', d.get\\('yield_diff',{}\\).get\\('available'\\)\\)\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); ai=d.get\\('ai_summary',{}\\); print\\('AI Provider:', ai.get\\('provider'\\)\\); print\\('AI Text \\(first 300 chars\\):', \\(ai.get\\('text',''\\)\\)[:300]\\)\")",
-      "Bash(python -m py_compile \"e:/Developer Hub/Trading/app/routes.py\")"
+      "Bash(python -m py_compile \"e:/Developer Hub/Trading/app/routes.py\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app/providers/stock_info.py'\\).read\\(\\)\\); print\\('stock_info.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app/analysis.py'\\).read\\(\\)\\); print\\('analysis.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app/routes.py'\\).read\\(\\)\\); print\\('routes.py OK'\\)\")",
+      "Bash(node --input-type=module)",
+      "Bash(node --check \"e:\\\\Developer Hub\\\\Trading\\\\static\\\\js\\\\app.js\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app/providers/stock_info.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app/providers/stock_info.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(Test-Path \"E:\\\\Developer Hub\\\\Trading\\\\.env.example\")",
+      "Bash(ls \"E:\\\\Developer Hub\\\\Trading\\\\\" | grep \".env\")",
+      "Read(//e/Developer Hub/**)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app/config.py'\\).read\\(\\)\\); ast.parse\\(open\\('scripts/setup_db.py'\\).read\\(\\)\\); print\\('Both OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('scripts/setup_db.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
+      "Bash(node --check static/js/app.js)",
+      "Bash(node --check static/js/dashboard.js)"
     ]
   }
 }
