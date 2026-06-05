@@ -286,8 +286,18 @@ a { text-decoration: none; color: inherit; }
 .dir-badge.neutral { background: rgba(245,158,11,0.12); color: var(--amber); }
 
 /* Gauge */
-.gauge-card { display: flex; align-items: center; justify-content: center; }
+.gauge-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding-bottom: 2.5rem;   /* reserve space for badges at the bottom */
+}
 .gauge-svg { width: 100%; max-width: 220px; }
+
+/* No extra bottom padding when there are no conflict badges */
+.gauge-card:not(:has(.conflict-badge)) { padding-bottom: 1.25rem; }
 
 /* Quick stats */
 .quick-stats-card { }
@@ -668,8 +678,8 @@ tr[data-tip]:hover > td { background: rgba(59,130,246,0.08) !important; transiti
   .cot-net       { font-size: 1rem; }
   .regime-label  { font-size: 0.85rem; }
 
-  /* Conflict badges */
-  .conflict-badges { flex-wrap: wrap; gap: 0.3rem; }
+  /* Conflict badges — keep absolute positioning on mobile too */
+  .conflict-badges { flex-wrap: wrap; gap: 0.3rem; padding: 0 0.3rem; }
 }
 
 /* ─── Key Signal Card ───────────────────────────────────────────────────── */
@@ -722,12 +732,16 @@ tr[data-tip]:hover > td { background: rgba(59,130,246,0.08) !important; transiti
 
 /* ─── Conflict Badges ───────────────────────────────────────────────────── */
 .conflict-badges {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0;
+  right: 0;
   display: flex;
   justify-content: center;
+  align-items: center;
   gap: 0.4rem;
-  margin-top: 0.3rem;
   flex-wrap: wrap;
-  min-height: 0;
+  padding: 0 0.5rem;
 }
 .conflict-badge {
   display: inline-flex;
