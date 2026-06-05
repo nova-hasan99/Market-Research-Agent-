@@ -92,7 +92,7 @@ MarketLens/
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/MarketLens.git
+git clone https://github.com/nova-hasan99/MarketLens.git
 cd MarketLens
 ```
 
@@ -481,12 +481,6 @@ python scripts/setup_db.py --reset
 ## License
 
 MIT License. See LICENSE file for details.
-
-## Support
-
-- Issues: GitHub Issues
-- Email: support@example.com
-- Documentation: See /docs folder
 
 ## Roadmap
 
