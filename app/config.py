@@ -30,6 +30,14 @@ SUPABASE_ACCESS_TOKEN = os.getenv("SUPABASE_ACCESS_TOKEN", "")  # Management API
 ADMIN_EMAIL = os.getenv("VITE_ADMIN_EMAIL", "")
 ADMIN_PASS  = os.getenv("VITE_ADMIN_PASSWORD", "")
 
+# ── SMTP (optional — for welcome emails) ─────────────────────────────────────
+SMTP_HOST     = os.getenv("SMTP_HOST", "")
+SMTP_PORT     = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER     = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM     = os.getenv("SMTP_FROM", SMTP_USER)
+SITE_URL      = os.getenv("SITE_URL", "http://localhost:8000")
+
 # ── Correlation & Sentiment ──────────────────────────────────────────────────
 OANDA_API_KEY        = os.getenv("OANDA_API_KEY", "")
 OANDA_ACCOUNT_ID     = os.getenv("OANDA_ACCOUNT_ID", "")

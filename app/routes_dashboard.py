@@ -57,6 +57,19 @@ async def dashboard(request: Request):
     })
 
 
+# ─── GET /admin/users — dedicated Super Admin user-management page ────────────
+@router.get("/admin/users", response_class=HTMLResponse)
+async def admin_users_page(request: Request):
+    user = await get_current_user(request)
+    if not user:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse("/login?next=/admin/users", status_code=302)
+    if not user.get("is_admin"):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse("/dashboard", status_code=302)
+    return templates.TemplateResponse(request, "admin_users.html", {"user": user})
+
+
 # ─── GET /dashboard/view/{id} — full-page analysis viewer ────────────────────
 @router.get("/dashboard/view/{analysis_id}", response_class=HTMLResponse)
 async def view_analysis_page(request: Request, analysis_id: str):
@@ -310,25 +323,136 @@ async def admin_get_users(request: Request):
     return profiles
 
 
-# ─── Admin: POST /api/admin/users/{user_id}/deactivate ───────────────────────
+# ─── Email helper (reuse from routes_auth) ───────────────────────────────────
+def _notify_user(email: str, name: str, subject: str, html: str) -> None:
+    from app.routes_auth import _send_email
+    _send_email(email, subject, html)
+
+
+def _deactivate_email_html(name: str) -> str:
+    from app.config import SITE_URL
+    return f"""
+    <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;
+                background:#0d1117;color:#f0f6fc;border-radius:12px;padding:2rem">
+      <h2 style="color:#ef4444;margin-top:0">Account Suspended</h2>
+      <p>Hi <strong>{name}</strong>,</p>
+      <p>Your MarketLens account has been temporarily <strong>deactivated</strong> by an administrator.
+         You will not be able to log in or use any features until your account is reinstated.</p>
+      <p>If you believe this is an error, please contact support.</p>
+      <p style="color:#6b7280;font-size:0.85rem;margin-top:1.5rem">— The MarketLens Team</p>
+    </div>"""
+
+
+def _activate_email_html(name: str) -> str:
+    from app.config import SITE_URL
+    return f"""
+    <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;
+                background:#0d1117;color:#f0f6fc;border-radius:12px;padding:2rem">
+      <h2 style="color:#10b981;margin-top:0">Account Reinstated</h2>
+      <p>Hi <strong>{name}</strong>,</p>
+      <p>Your MarketLens account has been <strong>reactivated</strong>.
+         You can now log in and use all features as normal.</p>
+      <a href="{SITE_URL}/login" style="display:inline-block;margin-top:1rem;
+         padding:0.65rem 1.5rem;background:#10b981;color:#fff;border-radius:8px;
+         text-decoration:none;font-weight:700">Sign In Now</a>
+      <p style="color:#6b7280;font-size:0.85rem;margin-top:1.5rem">— The MarketLens Team</p>
+    </div>"""
+
+
+def _get_user_profile(uid: str) -> dict:
+    """Fetch user profile (name + email) for email notifications."""
+    try:
+        client = _admin_client()
+        rows = client.table("profiles").select("name,email").eq("id", uid).execute().data
+        return rows[0] if rows else {}
+    except Exception:
+        return {}
+
+
+# ─── Admin: POST /api/admin/users/{uid}/deactivate ───────────────────────────
 @router.post("/api/admin/users/{uid}/deactivate")
 async def admin_deactivate_user(request: Request, uid: str):
     await require_admin(request)
     client = _admin_client()
     client.table("profiles").update({"is_active": False}).eq("id", uid).execute()
+    # Also ban via Supabase Auth so active sessions are invalidated
+    try:
+        client.auth.admin.update_user_by_id(uid, {"ban_duration": "876600h"})  # ~100 years
+    except Exception:
+        pass
+    # Email notification (non-blocking)
+    profile = _get_user_profile(uid)
+    if profile.get("email"):
+        import asyncio
+        asyncio.get_event_loop().run_in_executor(
+            None, _notify_user,
+            profile["email"], profile.get("name", "User"),
+            "Your MarketLens Account Has Been Suspended",
+            _deactivate_email_html(profile.get("name", "User")),
+        )
     return {"ok": True}
 
 
-# ─── Admin: POST /api/admin/users/{user_id}/activate ─────────────────────────
+# ─── Admin: POST /api/admin/users/{uid}/activate ─────────────────────────────
 @router.post("/api/admin/users/{uid}/activate")
 async def admin_activate_user(request: Request, uid: str):
     await require_admin(request)
     client = _admin_client()
     client.table("profiles").update({"is_active": True}).eq("id", uid).execute()
+    # Unban in Supabase Auth
+    try:
+        client.auth.admin.update_user_by_id(uid, {"ban_duration": "none"})
+    except Exception:
+        pass
+    # Email notification
+    profile = _get_user_profile(uid)
+    if profile.get("email"):
+        import asyncio
+        asyncio.get_event_loop().run_in_executor(
+            None, _notify_user,
+            profile["email"], profile.get("name", "User"),
+            "Your MarketLens Account Has Been Reinstated",
+            _activate_email_html(profile.get("name", "User")),
+        )
     return {"ok": True}
 
 
-# ─── Admin: GET /api/admin/users/{user_id}/analyses ──────────────────────────
+# ─── Admin: DELETE /api/admin/users/{uid} ────────────────────────────────────
+@router.delete("/api/admin/users/{uid}")
+async def admin_delete_user(request: Request, uid: str):
+    """
+    Permanently delete a user and ALL their data:
+      1. Delete all analyses from the analyses table
+      2. Delete profile row
+      3. Delete from Supabase Auth (revokes all sessions)
+    """
+    await require_admin(request)
+    # Prevent self-deletion
+    me = await require_admin(request)
+    if me["id"] == uid:
+        raise HTTPException(400, "Cannot delete your own account")
+
+    client = _admin_client()
+    # 1. Delete all analyses
+    try:
+        client.table("analyses").delete().eq("user_id", uid).execute()
+    except Exception:
+        pass
+    # 2. Delete profile row
+    try:
+        client.table("profiles").delete().eq("id", uid).execute()
+    except Exception:
+        pass
+    # 3. Delete from Supabase Auth
+    try:
+        client.auth.admin.delete_user(uid)
+    except Exception as e:
+        raise HTTPException(500, f"Auth deletion failed: {e}")
+
+    return {"ok": True, "deleted": uid}
+
+
+# ─── Admin: GET /api/admin/users/{uid}/analyses ──────────────────────────────
 @router.get("/api/admin/users/{uid}/analyses")
 async def admin_get_user_analyses(request: Request, uid: str):
     await require_admin(request)

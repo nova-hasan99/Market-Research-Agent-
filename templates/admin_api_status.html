@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Status — MarketLens Admin</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    .as-body { background: var(--bg); min-height: 100vh; }
+    .as-main { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    /* Page header */
+    .as-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;
+    }
+    .as-title { font-size: 1.6rem; font-weight: 800; }
+    .as-subtitle { font-size: 0.875rem; color: var(--muted); margin-top: 0.2rem; }
+    .as-admin-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.35rem 0.8rem; border-radius: 20px;
+      background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35);
+      color: var(--amber); font-size: 0.78rem; font-weight: 700;
+    }
+
+    /* Summary bar */
+    .as-summary {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .as-stat {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem;
+      text-align: center;
+    }
+    .as-stat-num {
+      font-size: 2rem; font-weight: 800; line-height: 1;
+      margin-bottom: 0.3rem;
+    }
+    .as-stat-num.green  { color: #10b981; }
+    .as-stat-num.red    { color: #ef4444; }
+    .as-stat-num.amber  { color: var(--amber); }
+    .as-stat-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    /* Section */
+    .as-section { margin-bottom: 2rem; }
+    .as-section-title {
+      font-size: 0.72rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .as-section-title::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* Provider cards */
+    .as-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.85rem; }
+
+    .as-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1rem 1.15rem;
+      display: flex; align-items: flex-start; gap: 0.85rem;
+      transition: border-color 0.15s;
+    }
+    .as-card:hover { border-color: rgba(255,255,255,0.15); }
+    .as-card.enabled  { border-left: 3px solid #10b981; }
+    .as-card.disabled { border-left: 3px solid rgba(239,68,68,0.5); opacity: 0.65; }
+
+    .as-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      margin-top: 5px; flex-shrink: 0;
+    }
+    .as-dot.on  { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.6); }
+    .as-dot.off { background: #ef4444; }
+
+    .as-card-body { flex: 1; min-width: 0; }
+    .as-card-name { font-weight: 700; font-size: 0.92rem; margin-bottom: 0.15rem; }
+    .as-card-note { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+    .as-card-key  {
+      margin-top: 0.5rem; display: inline-block;
+      font-size: 0.72rem; font-family: 'Courier New', monospace;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      border-radius: 4px; padding: 0.15rem 0.45rem;
+      color: var(--muted);
+    }
+    .as-card-priority {
+      font-size: 0.68rem; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.05em; margin-left: auto; white-space: nowrap;
+    }
+
+    /* Status pill */
+    .as-pill {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.18rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700;
+    }
+    .as-pill.on  { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+    .as-pill.off { background: rgba(239,68,68,0.1);   color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+
+    /* Help footer */
+    .as-help {
+      margin-top: 2rem; background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem 1.5rem;
+    }
+    .as-help-title { font-weight: 700; margin-bottom: 0.75rem; font-size: 0.9rem; }
+    .as-help-grid  { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.5rem; }
+    .as-help-item  { font-size: 0.82rem; color: var(--muted); display: flex; align-items: center; gap: 0.4rem; }
+    .as-help-item a { color: var(--blue); text-decoration: none; }
+    .as-help-item a:hover { text-decoration: underline; }
+
+    @media (max-width: 640px) {
+      .as-summary { grid-template-columns: repeat(2, 1fr); }
+      .as-grid    { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body class="as-body app-body">
+
+<nav class="app-nav">
+  <div class="nav-inner">
+    <a href="/" class="logo">
+      <span class="logo-icon">◈</span>
+      <span class="logo-text">MarketLens</span>
+    </a>
+    <div class="nav-links">
+      <a href="/research"  class="nav-btn-ghost">Research</a>
+      <a href="/dashboard" class="nav-btn-ghost">Dashboard</a>
+      <a href="/admin/api-status" class="nav-btn-ghost" style="color:var(--blue)">API Status</a>
+      <a href="/logout"    class="nav-btn-ghost">Logout</a>
+    </div>
+  </div>
+</nav>
+
+<main class="as-main">
+
+  {% set all_providers = status.price_data + status.ai_summary + status.market_data + status.infrastructure %}
+  {% set total   = all_providers | length %}
+  {% set enabled = all_providers | selectattr('enabled') | list | length %}
+  {% set disabled = total - enabled %}
+
+  <!-- Page header -->
+  <div class="as-header">
+    <div>
+      <div class="as-title">API Status</div>
+      <div class="as-subtitle">MarketLens data provider health — admin view</div>
+    </div>
+    <span class="as-admin-badge">⚙ Admin Only</span>
+  </div>
+
+  <!-- Summary stats -->
+  <div class="as-summary">
+    <div class="as-stat">
+      <div class="as-stat-num green">{{ enabled }}</div>
+      <div class="as-stat-label">Configured</div>
+    </div>
+    <div class="as-stat">
+      <div class="as-stat-num {% if disabled > 0 %}amber{% else %}green{% endif %}">{{ disabled }}</div>
+      <div class="as-stat-label">Not Set</div>
+    </div>
+    <div class="as-stat">
+      <div class="as-stat-num">{{ total }}</div>
+      <div class="as-stat-label">Total Providers</div>
+    </div>
+    <div class="as-stat">
+      <div class="as-stat-num {% if enabled == total %}green{% elif enabled >= total // 2 %}amber{% else %}red{% endif %}">
+        {{ (enabled / total * 100) | round | int }}%
+      </div>
+      <div class="as-stat-label">Coverage</div>
+    </div>
+  </div>
+
+  <!-- Price Data -->
+  <div class="as-section">
+    <div class="as-section-title">📈 Price Data (OHLCV)</div>
+    <div class="as-grid">
+      {% for p in status.price_data %}
+      <div class="as-card {{ 'enabled' if p.enabled else 'disabled' }}">
+        <div class="as-dot {{ 'on' if p.enabled else 'off' }}"></div>
+        <div class="as-card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
+            <div class="as-card-name">{{ p.name }}</div>
+            {% if p.priority %}<div class="as-card-priority">Priority {{ p.priority }}</div>{% endif %}
+          </div>
+          <div class="as-card-note">{{ p.note }}</div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem">
+            <span class="as-card-key">{{ p.key }}</span>
+            <span class="as-pill {{ 'on' if p.enabled else 'off' }}">
+              {{ '✓ Active' if p.enabled else '✗ Not Set' }}
+            </span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- AI Summary -->
+  <div class="as-section">
+    <div class="as-section-title">🤖 AI Summary Providers</div>
+    <div class="as-grid">
+      {% for p in status.ai_summary %}
+      <div class="as-card {{ 'enabled' if p.enabled else 'disabled' }}">
+        <div class="as-dot {{ 'on' if p.enabled else 'off' }}"></div>
+        <div class="as-card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
+            <div class="as-card-name">{{ p.name }}</div>
+            {% if p.priority %}<div class="as-card-priority">Priority {{ p.priority }}</div>{% endif %}
+          </div>
+          <div class="as-card-note">{{ p.note }}</div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem">
+            <span class="as-card-key">{{ p.key }}</span>
+            <span class="as-pill {{ 'on' if p.enabled else 'off' }}">
+              {{ '✓ Active' if p.enabled else '✗ Not Set' }}
+            </span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Market Data -->
+  <div class="as-section">
+    <div class="as-section-title">🌐 Market Data & Sentiment</div>
+    <div class="as-grid">
+      {% for p in status.market_data %}
+      <div class="as-card {{ 'enabled' if p.enabled else 'disabled' }}">
+        <div class="as-dot {{ 'on' if p.enabled else 'off' }}"></div>
+        <div class="as-card-body">
+          <div class="as-card-name">{{ p.name }}</div>
+          <div class="as-card-note">{{ p.note }}</div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem">
+            <span class="as-card-key">{{ p.key }}</span>
+            <span class="as-pill {{ 'on' if p.enabled else 'off' }}">
+              {{ '✓ Active' if p.enabled else '✗ Not Set' }}
+            </span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Infrastructure -->
+  <div class="as-section">
+    <div class="as-section-title">🔧 Infrastructure</div>
+    <div class="as-grid">
+      {% for p in status.infrastructure %}
+      <div class="as-card {{ 'enabled' if p.enabled else 'disabled' }}">
+        <div class="as-dot {{ 'on' if p.enabled else 'off' }}"></div>
+        <div class="as-card-body">
+          <div class="as-card-name">{{ p.name }}</div>
+          <div class="as-card-note">{{ p.note }}</div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem">
+            <span class="as-card-key">{{ p.key }}</span>
+            <span class="as-pill {{ 'on' if p.enabled else 'off' }}">
+              {{ '✓ Active' if p.enabled else '✗ Not Set' }}
+            </span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Help links -->
+  <div class="as-help">
+    <div class="as-help-title">📋 Get API Keys</div>
+    <div class="as-help-grid">
+      <div class="as-help-item">📊 <a href="https://twelvedata.com" target="_blank">TwelveData</a> — free tier available</div>
+      <div class="as-help-item">📊 <a href="https://alphavantage.co/support/#api-key" target="_blank">AlphaVantage</a> — free</div>
+      <div class="as-help-item">📊 <a href="https://polygon.io" target="_blank">Polygon.io</a> — stocks</div>
+      <div class="as-help-item">📰 <a href="https://newsapi.org" target="_blank">NewsAPI</a> — free tier</div>
+      <div class="as-help-item">🗓 <a href="https://finnhub.io" target="_blank">Finnhub</a> — free tier</div>
+      <div class="as-help-item">🤖 <a href="https://aistudio.google.com" target="_blank">Google Gemini</a> — free</div>
+      <div class="as-help-item">🤖 <a href="https://console.groq.com" target="_blank">Groq</a> — free</div>
+      <div class="as-help-item">💰 <a href="https://tradingeconomics.com/api" target="_blank">TradingEconomics</a> — paid</div>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

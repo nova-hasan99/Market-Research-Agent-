@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Super Admin — MarketLens</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="stylesheet" href="/static/css/dashboard.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="app-body">
+
+<!-- Navbar -->
+<nav class="app-nav db-nav">
+  <div class="nav-inner">
+    <a href="/" class="logo">
+      <span class="logo-icon">◈</span>
+      <span class="logo-text">MarketLens</span>
+    </a>
+    <div class="nav-links">
+      <a href="/research"  class="nav-btn-ghost">Research</a>
+      <a href="/dashboard" class="nav-btn-ghost">Dashboard</a>
+      <a href="/admin/api-status" class="nav-btn-ghost">API Status</a>
+      <span class="user-pill">
+        <span class="user-dot"></span>
+        {{ user.name if user else 'Admin' }}
+      </span>
+      <a href="/logout" class="nav-btn-ghost">Logout</a>
+    </div>
+  </div>
+</nav>
+
+<main class="db-main">
+
+  <div class="admin-panel" style="margin-top:0">
+
+    <!-- Header -->
+    <div class="admin-header-row">
+      <div>
+        <div class="admin-title">⚙ Super Admin — User Management</div>
+        <div class="admin-subtitle">View, suspend, or permanently delete any registered user</div>
+      </div>
+      <div style="display:flex;gap:0.6rem;align-items:center">
+        <input id="admin-search" type="text" placeholder="Search name or email…"
+               class="admin-search-input" oninput="filterAdminUsers(this.value)" />
+        <button class="tb-btn" onclick="loadAdminUsers()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="admin-stats-row" id="admin-stats-row">
+      <div class="admin-stat-card">
+        <div class="admin-stat-num" id="stat-total">—</div>
+        <div class="admin-stat-lbl">Total Users</div>
+      </div>
+      <div class="admin-stat-card">
+        <div class="admin-stat-num green" id="stat-active">—</div>
+        <div class="admin-stat-lbl">Active</div>
+      </div>
+      <div class="admin-stat-card">
+        <div class="admin-stat-num red" id="stat-inactive">—</div>
+        <div class="admin-stat-lbl">Suspended</div>
+      </div>
+      <div class="admin-stat-card">
+        <div class="admin-stat-num blue" id="stat-analyses">—</div>
+        <div class="admin-stat-lbl">Total Analyses</div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="admin-table-wrap">
+      <table class="db-table admin-users-table">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Joined</th>
+            <th>Analyses</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="admin-users-body">
+          <tr><td colspan="7" class="empty-row">Loading users…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- Toast -->
+<div id="db-toast" class="db-toast hidden"></div>
+
+<script>
+  window.__CURRENT_USER_ID__ = "{{ user.id if user else '' }}";
+
+  /* ── Helpers ──────────────────────────────────────────────────────────── */
+  function _esc(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function _formatDateTime(isoStr) {
+    if (!isoStr) return '—';
+    try {
+      const d = new Date(isoStr);
+      // Format: DD/MM/YYYY HH:MM (Bangladesh style)
+      const day   = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year  = d.getFullYear();
+      const hour  = String(d.getHours()).padStart(2, '0');
+      const min   = String(d.getMinutes()).padStart(2, '0');
+      return `${day}/${month}/${year} ${hour}:${min}`;
+    } catch (e) {
+      return isoStr.slice(0, 10);
+    }
+  }
+
+  let _toastTimer = null;
+  function showToast(msg, type = 'ok') {
+    const toast = document.getElementById('db-toast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.className   = `db-toast toast-${type}`;
+    toast.classList.remove('hidden');
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => toast.classList.add('hidden'), 3500);
+  }
+
+  /* ── Admin user management ────────────────────────────────────────────── */
+  let _allAdminUsers = [];
+
+  async function loadAdminUsers() {
+    const tbody = document.getElementById('admin-users-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-row">Loading users…</td></tr>';
+    try {
+      const res = await fetch('/api/admin/users');
+      if (!res.ok) throw new Error('Failed to load (HTTP ' + res.status + ')');
+      _allAdminUsers = await res.json();
+      _renderAdminUsers(_allAdminUsers);
+      _updateAdminStats(_allAdminUsers);
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--down)">${_esc(err.message)}</td></tr>`;
+    }
+  }
+
+  function _updateAdminStats(users) {
+    const total    = users.length;
+    const active   = users.filter(u => u.is_active).length;
+    const inactive = total - active;
+    const analyses = users.reduce((s, u) => s + (u.analysis_count || 0), 0);
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    set('stat-total', total);
+    set('stat-active', active);
+    set('stat-inactive', inactive);
+    set('stat-analyses', analyses);
+  }
+
+  function filterAdminUsers(q) {
+    const query = (q || '').toLowerCase().trim();
+    if (!query) { _renderAdminUsers(_allAdminUsers); return; }
+    const filtered = _allAdminUsers.filter(u =>
+      (u.name  || '').toLowerCase().includes(query) ||
+      (u.email || '').toLowerCase().includes(query)
+    );
+    _renderAdminUsers(filtered);
+  }
+
+  function _renderAdminUsers(users) {
+    const tbody = document.getElementById('admin-users-body');
+    if (!tbody) return;
+    if (!users.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-row">No users found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = users.map(u => {
+      const initials = (u.name || u.email || '?')[0].toUpperCase();
+      const joined   = _formatDateTime(u.created_at);
+      const isSelf   = (window.__CURRENT_USER_ID__ && u.id === window.__CURRENT_USER_ID__);
+
+      const statusBadge = u.is_active
+        ? `<span class="au-badge au-active">● Active</span>`
+        : `<span class="au-badge au-inactive">● Suspended</span>`;
+
+      const roleBadge = u.is_admin
+        ? `<span class="au-badge au-admin">Admin</span>`
+        : `<span class="au-badge au-user">User</span>`;
+
+      const toggleBtn = isSelf ? '' : (u.is_active
+        ? `<button class="au-btn au-btn-warn" onclick="adminDeactivate('${u.id}',this,'${_esc(u.name||u.email)}')">Suspend</button>`
+        : `<button class="au-btn au-btn-ok"   onclick="adminActivate('${u.id}',this)">Activate</button>`);
+
+      const deleteBtn = isSelf ? '' :
+        `<button class="au-btn au-btn-danger" onclick="adminDelete('${u.id}','${_esc(u.name||u.email)}')">Delete</button>`;
+
+      return `<tr class="${u.is_active ? '' : 'au-row-muted'}">
+        <td>
+          <div class="au-user-cell">
+            <div class="au-avatar">${initials}</div>
+            <div class="au-user-name">${_esc(u.name || '—')}${isSelf ? ' <span style="color:var(--muted);font-weight:400">(you)</span>' : ''}</div>
+          </div>
+        </td>
+        <td class="au-email">${_esc(u.email || '—')}</td>
+        <td class="au-date">${joined}</td>
+        <td><span class="au-count">${u.analysis_count || 0}</span></td>
+        <td>${roleBadge}</td>
+        <td>${statusBadge}</td>
+        <td>
+          <div class="au-actions">
+            <a href="/dashboard?user_id=${u.id}" class="au-btn au-btn-view" target="_blank">View</a>
+            ${toggleBtn}
+            ${deleteBtn}
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function adminDeactivate(uid, btn, name) {
+    if (!confirm(`Suspend "${name}"?\n\nThey will be locked out and receive a notification email.`)) return;
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const r = await fetch(`/api/admin/users/${uid}/deactivate`, { method: 'POST' });
+      if (!r.ok) throw new Error(await r.text());
+      showToast(`"${name}" suspended. Notification email sent.`, 'ok');
+      loadAdminUsers();
+    } catch (err) {
+      showToast('Failed: ' + err.message, 'error');
+      btn.disabled = false; btn.textContent = 'Suspend';
+    }
+  }
+
+  async function adminActivate(uid, btn) {
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const r = await fetch(`/api/admin/users/${uid}/activate`, { method: 'POST' });
+      if (!r.ok) throw new Error(await r.text());
+      showToast('User reactivated. Notification email sent.', 'ok');
+      loadAdminUsers();
+    } catch (err) {
+      showToast('Failed: ' + err.message, 'error');
+      btn.disabled = false; btn.textContent = 'Activate';
+    }
+  }
+
+  async function adminDelete(uid, name) {
+    if (!confirm(
+      `⚠ PERMANENTLY DELETE "${name}"?\n\n` +
+      `This will:\n• Delete their account\n• Delete ALL their analyses\n• This CANNOT be undone`
+    )) return;
+    const word = prompt(`Type DELETE to permanently delete "${name}":`, '');
+    if (word !== 'DELETE') { showToast('Cancelled — you must type DELETE exactly.', 'error'); return; }
+    try {
+      const r = await fetch(`/api/admin/users/${uid}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error(await r.text());
+      showToast(`"${name}" permanently deleted.`, 'ok');
+      loadAdminUsers();
+    } catch (err) {
+      showToast('Delete failed: ' + err.message, 'error');
+    }
+  }
+
+  /* ── Init ─────────────────────────────────────────────────────────────── */
+  document.addEventListener('DOMContentLoaded', loadAdminUsers);
+</script>
+</body>
+</html>

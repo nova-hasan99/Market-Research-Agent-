@@ -229,66 +229,141 @@ function toggleAdminPanel() {
   }
 }
 
+let _allAdminUsers = [];
+
 async function loadAdminUsers() {
   const tbody = document.getElementById('admin-users-body');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="7" class="empty-row">Loading...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7" class="empty-row">Loading users…</td></tr>';
   try {
-    const res   = await fetch('/api/admin/users');
+    const res = await fetch('/api/admin/users');
     if (!res.ok) throw new Error('Failed to load');
-    const users = await res.json();
-    if (!users.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-row">No users found.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = users.map(u => `
-      <tr>
-        <td><strong>${_esc(u.name || '-')}</strong></td>
-        <td>${_esc(u.email || '-')}</td>
-        <td class="col-date">${(u.created_at || '').slice(0, 10)}</td>
-        <td class="col-date">${(u.last_seen || '-').slice(0, 10)}</td>
-        <td>${u.analysis_count || 0}</td>
-        <td>
-          <span class="bias-mini ${u.is_active ? 'up' : 'down'}">
-            ${u.is_active ? 'Active' : 'Inactive'}
-          </span>
-          ${u.is_admin ? '<span class="bias-mini neutral" style="margin-left:0.3rem">Admin</span>' : ''}
-        </td>
-        <td>
-          <a href="/dashboard?user_id=${u.id}" class="tb-btn" style="margin-right:0.35rem;font-size:0.75rem">View</a>
-          ${u.is_active
-            ? `<button class="tb-btn tb-delete" onclick="adminDeactivate('${u.id}', this)" style="font-size:0.75rem">Deactivate</button>`
-            : `<button class="tb-btn" onclick="adminActivate('${u.id}', this)" style="font-size:0.75rem">Activate</button>`
-          }
-        </td>
-      </tr>
-    `).join('');
+    _allAdminUsers = await res.json();
+    _renderAdminUsers(_allAdminUsers);
+    _updateAdminStats(_allAdminUsers);
+    const statsRow = document.getElementById('admin-stats-row');
+    if (statsRow) statsRow.style.display = 'grid';
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--down)">${err.message}</td></tr>`;
   }
 }
 
-async function adminDeactivate(uid, btn) {
-  btn.disabled = true;
+function _updateAdminStats(users) {
+  const total    = users.length;
+  const active   = users.filter(u => u.is_active).length;
+  const inactive = total - active;
+  const analyses = users.reduce((s, u) => s + (u.analysis_count || 0), 0);
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  set('stat-total',    total);
+  set('stat-active',   active);
+  set('stat-inactive', inactive);
+  set('stat-analyses', analyses);
+}
+
+function filterAdminUsers(q) {
+  const query = (q || '').toLowerCase().trim();
+  if (!query) { _renderAdminUsers(_allAdminUsers); return; }
+  const filtered = _allAdminUsers.filter(u =>
+    (u.name  || '').toLowerCase().includes(query) ||
+    (u.email || '').toLowerCase().includes(query)
+  );
+  _renderAdminUsers(filtered);
+}
+
+function _renderAdminUsers(users) {
+  const tbody = document.getElementById('admin-users-body');
+  if (!tbody) return;
+  if (!users.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-row">No users found.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = users.map(u => {
+    const initials = (u.name || u.email || '?')[0].toUpperCase();
+    const joined   = (u.created_at || '').slice(0, 10);
+    const isSelf   = (window.__CURRENT_USER_ID__ && u.id === window.__CURRENT_USER_ID__);
+
+    const statusBadge = u.is_active
+      ? `<span class="au-badge au-active">● Active</span>`
+      : `<span class="au-badge au-inactive">● Suspended</span>`;
+
+    const roleBadge = u.is_admin
+      ? `<span class="au-badge au-admin">Admin</span>`
+      : `<span class="au-badge au-user">User</span>`;
+
+    const toggleBtn = u.is_active
+      ? `<button class="au-btn au-btn-warn" onclick="adminDeactivate('${u.id}',this,'${_esc(u.name||u.email)}')">Suspend</button>`
+      : `<button class="au-btn au-btn-ok"   onclick="adminActivate('${u.id}',this)">Activate</button>`;
+
+    const deleteBtn = isSelf ? '' :
+      `<button class="au-btn au-btn-danger" onclick="adminDelete('${u.id}','${_esc(u.name||u.email)}')">Delete</button>`;
+
+    return `<tr class="${u.is_active ? '' : 'au-row-muted'}">
+      <td>
+        <div class="au-user-cell">
+          <div class="au-avatar">${initials}</div>
+          <div class="au-user-name">${_esc(u.name || '—')}</div>
+        </div>
+      </td>
+      <td class="au-email">${_esc(u.email || '—')}</td>
+      <td class="au-date">${joined}</td>
+      <td>
+        <span class="au-count">${u.analysis_count || 0}</span>
+      </td>
+      <td>${roleBadge}</td>
+      <td>${statusBadge}</td>
+      <td>
+        <div class="au-actions">
+          <a href="/dashboard?user_id=${u.id}" class="au-btn au-btn-view" target="_blank">View</a>
+          ${toggleBtn}
+          ${deleteBtn}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function adminDeactivate(uid, btn, name) {
+  if (!confirm(`Suspend "${name}"?\n\nThey will be locked out and receive a notification email.`)) return;
+  btn.disabled = true; btn.textContent = '…';
   try {
-    await fetch(`/api/admin/users/${uid}/deactivate`, { method: 'POST' });
-    showToast('User deactivated.', 'ok');
+    const r = await fetch(`/api/admin/users/${uid}/deactivate`, { method: 'POST' });
+    if (!r.ok) throw new Error(await r.text());
+    showToast(`"${name}" suspended. Notification email sent.`, 'ok');
     loadAdminUsers();
   } catch (err) {
     showToast('Failed: ' + err.message, 'error');
-    btn.disabled = false;
+    btn.disabled = false; btn.textContent = 'Suspend';
   }
 }
 
 async function adminActivate(uid, btn) {
-  btn.disabled = true;
+  btn.disabled = true; btn.textContent = '…';
   try {
-    await fetch(`/api/admin/users/${uid}/activate`, { method: 'POST' });
-    showToast('User activated.', 'ok');
+    const r = await fetch(`/api/admin/users/${uid}/activate`, { method: 'POST' });
+    if (!r.ok) throw new Error(await r.text());
+    showToast('User reactivated. Notification email sent.', 'ok');
     loadAdminUsers();
   } catch (err) {
     showToast('Failed: ' + err.message, 'error');
-    btn.disabled = false;
+    btn.disabled = false; btn.textContent = 'Activate';
+  }
+}
+
+async function adminDelete(uid, name) {
+  const confirmed = confirm(
+    `⚠ PERMANENTLY DELETE "${name}"?\n\n` +
+    `This will:\n• Delete their account\n• Delete ALL their analyses\n• This CANNOT be undone\n\nType the word DELETE to confirm:`
+  );
+  if (!confirmed) return;
+  const word = prompt(`Type DELETE to permanently delete "${name}":`, '');
+  if (word !== 'DELETE') { showToast('Cancelled — you must type DELETE exactly.', 'error'); return; }
+  try {
+    const r = await fetch(`/api/admin/users/${uid}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error(await r.text());
+    showToast(`"${name}" permanently deleted.`, 'ok');
+    loadAdminUsers();
+  } catch (err) {
+    showToast('Delete failed: ' + err.message, 'error');
   }
 }
 

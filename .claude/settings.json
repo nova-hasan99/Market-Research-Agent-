@@ -69,7 +69,14 @@
       "Bash(powershell \"Get-ChildItem -Path 'e:\\\\Developer Hub\\\\Trading' -Recurse -Filter 'python.exe' -ErrorAction SilentlyContinue | Select -First 3 FullName; Get-ChildItem -Path 'e:\\\\Developer Hub' -Recurse -Filter 'uvicorn.exe' -ErrorAction SilentlyContinue | Select -First 3 FullName\")",
       "Bash(\"venv/Scripts/python.exe\" -c \"import pandas; import numpy; print\\('pandas', pandas.__version__, '| numpy', numpy.__version__\\)\")",
       "Bash(\"venv/Scripts/python.exe\" test_system.py)",
-      "Bash(del \"e:\\\\Developer Hub\\\\Trading\\\\test_system.py\")"
+      "Bash(del \"e:\\\\Developer Hub\\\\Trading\\\\test_system.py\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app/routes_auth.py'\\).read\\(\\)\\); ast.parse\\(open\\('app/config.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app/routes_dashboard.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"import ast; [ast.parse\\(open\\(f\\).read\\(\\)\\) for f in ['app/routes_dashboard.py','app/auth.py']]; print\\('Python OK'\\)\")",
+      "Bash(venv/Scripts/python.exe -c ' *)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app/routes.py'\\).read\\(\\)\\); print\\('routes.py syntax OK'\\)\")",
+      "Bash(\"venv/Scripts/python.exe\")",
+      "Bash(node --check templates/admin_users.html)"
     ]
   }
 }

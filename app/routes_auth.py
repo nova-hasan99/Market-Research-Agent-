@@ -1,17 +1,77 @@
 """
-Authentication routes: /login, /register, /logout
+Authentication routes: /login  /register  /logout
+                       /forgot-password  /reset-password
 """
+import smtplib
+import asyncio
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.auth import get_current_user, set_auth_cookie, clear_auth_cookies
-from app.db import get_client
+from app.config import (
+    SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM, SITE_URL,
+)
+from app.db import get_client, get_admin_client
 from app.deps import templates
 
 router = APIRouter()
 
 
-# ─── GET /login ───────────────────────────────────────────────────────────────
+# ── Email helper ──────────────────────────────────────────────────────────────
+
+def _send_email(to: str, subject: str, html: str) -> None:
+    """Send an email via SMTP. Silently skips if SMTP is not configured."""
+    if not (SMTP_HOST and SMTP_USER and SMTP_PASSWORD):
+        return
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = SMTP_FROM or SMTP_USER
+        msg["To"]      = to
+        msg.attach(MIMEText(html, "html"))
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as s:
+            s.ehlo()
+            s.starttls()
+            s.login(SMTP_USER, SMTP_PASSWORD)
+            s.sendmail(SMTP_FROM or SMTP_USER, [to], msg.as_string())
+    except Exception:
+        pass   # Never break registration if email fails
+
+
+def _welcome_email_html(name: str, email: str, password: str) -> str:
+    return f"""
+    <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;
+                background:#0d1117;color:#f0f6fc;border-radius:12px;padding:2rem">
+      <h2 style="color:#3b82f6;margin-top:0">Welcome to MarketLens</h2>
+      <p>Hi <strong>{name}</strong>, your account is ready.</p>
+      <table style="border-collapse:collapse;width:100%;margin:1.5rem 0">
+        <tr>
+          <td style="padding:0.5rem 1rem;background:#161b22;border-radius:6px 6px 0 0;
+                     color:#8b949e;font-size:0.8rem;font-weight:600;
+                     text-transform:uppercase;letter-spacing:0.05em">Email</td>
+          <td style="padding:0.5rem 1rem;background:#161b22;border-radius:0 0 0 0">{email}</td>
+        </tr>
+        <tr>
+          <td style="padding:0.5rem 1rem;background:#1c2128;
+                     color:#8b949e;font-size:0.8rem;font-weight:600;
+                     text-transform:uppercase;letter-spacing:0.05em">Password</td>
+          <td style="padding:0.5rem 1rem;background:#1c2128">{password}</td>
+        </tr>
+      </table>
+      <p style="color:#8b949e;font-size:0.875rem">
+        Keep this email safe. You can change your password any time via the
+        <a href="{SITE_URL}/forgot-password" style="color:#3b82f6">Forgot Password</a> page.
+      </p>
+      <a href="{SITE_URL}/research" style="display:inline-block;margin-top:1rem;
+         padding:0.65rem 1.5rem;background:#3b82f6;color:#fff;border-radius:8px;
+         text-decoration:none;font-weight:700">Open MarketLens</a>
+    </div>"""
+
+
+# ── GET /login ────────────────────────────────────────────────────────────────
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     user = await get_current_user(request)
@@ -26,7 +86,7 @@ async def login_page(request: Request):
     )
 
 
-# ─── POST /login ──────────────────────────────────────────────────────────────
+# ── POST /login ───────────────────────────────────────────────────────────────
 @router.post("/login")
 async def login_submit(
     request:  Request,
@@ -54,7 +114,7 @@ async def login_submit(
         return RedirectResponse(f"/login?error={msg}{suffix}", status_code=302)
 
 
-# ─── GET /register ────────────────────────────────────────────────────────────
+# ── GET /register ─────────────────────────────────────────────────────────────
 @router.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
     user = await get_current_user(request)
@@ -64,7 +124,7 @@ async def register_page(request: Request):
     return templates.TemplateResponse(request, "register.html", {"user": None, "error": error})
 
 
-# ─── POST /register ───────────────────────────────────────────────────────────
+# ── POST /register ────────────────────────────────────────────────────────────
 @router.post("/register")
 async def register_submit(
     request:  Request,
@@ -81,22 +141,50 @@ async def register_submit(
         meta["country"] = country.strip()
 
     try:
-        client   = get_client()
+        client = get_client()
+        # 1. Sign up (may require email confirmation in Supabase settings)
         response = client.auth.sign_up({
             "email":    email,
             "password": password,
             "options":  {"data": meta},
         })
-        session = response.session
+
+        if not response.user:
+            return RedirectResponse("/register?error=Registration+failed", status_code=302)
+
+        user_id = response.user.id
+
+        # 2. Auto-confirm the email via admin API (bypasses email confirmation)
+        try:
+            admin = get_admin_client()
+            admin.auth.admin.update_user_by_id(user_id, {"email_confirm": True})
+        except Exception:
+            pass   # If admin confirm fails, try to sign in anyway
+
+        # 3. Sign in immediately to get a valid session
+        sign_in = client.auth.sign_in_with_password({"email": email, "password": password})
+        session = sign_in.session
+
         if not session:
-            # Email confirmation required
+            # Fallback: email confirmation still pending — show friendly message
             return templates.TemplateResponse(
                 request, "register.html",
-                {"user": None, "error": "", "info": "Check your email to confirm your account."},
+                {"user": None, "error": "",
+                 "info": "Account created! Please check your email to confirm before signing in."},
             )
+
+        # 4. Send welcome email in the background (non-blocking)
+        asyncio.get_event_loop().run_in_executor(
+            None, _send_email, email,
+            "Welcome to MarketLens — Your Account Details",
+            _welcome_email_html(name, email, password),
+        )
+
+        # 5. Redirect straight to dashboard
         redirect = RedirectResponse("/dashboard", status_code=302)
         set_auth_cookie(redirect, session.access_token, session.refresh_token)
         return redirect
+
     except Exception as exc:
         msg = str(exc).replace(" ", "+")
         if "already" in str(exc).lower():
@@ -104,9 +192,80 @@ async def register_submit(
         return RedirectResponse(f"/register?error={msg}", status_code=302)
 
 
-# ─── GET /logout ──────────────────────────────────────────────────────────────
+# ── GET /logout ───────────────────────────────────────────────────────────────
 @router.get("/logout")
 async def logout(request: Request):
     redirect = RedirectResponse("/", status_code=302)
     clear_auth_cookies(redirect)
     return redirect
+
+
+# ── GET /forgot-password ─────────────────────────────────────────────────────
+@router.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_page(request: Request):
+    user = await get_current_user(request)
+    if user:
+        return RedirectResponse("/dashboard", status_code=302)
+    sent  = request.query_params.get("sent",  "")
+    error = request.query_params.get("error", "")
+    return templates.TemplateResponse(
+        request, "forgot_password.html",
+        {"user": None, "sent": sent, "error": error},
+    )
+
+
+# ── POST /forgot-password ────────────────────────────────────────────────────
+@router.post("/forgot-password")
+async def forgot_password_submit(
+    request: Request,
+    email:   str = Form(...),
+):
+    try:
+        client = get_client()
+        reset_url = f"{SITE_URL}/reset-password"
+        client.auth.reset_password_for_email(email, {"redirect_to": reset_url})
+        return RedirectResponse(
+            "/forgot-password?sent=1",
+            status_code=302,
+        )
+    except Exception as exc:
+        msg = str(exc).replace(" ", "+")
+        return RedirectResponse(f"/forgot-password?error={msg}", status_code=302)
+
+
+# ── GET /reset-password ──────────────────────────────────────────────────────
+@router.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(request: Request):
+    error = request.query_params.get("error", "")
+    return templates.TemplateResponse(
+        request, "reset_password.html",
+        {"user": None, "error": error},
+    )
+
+
+# ── POST /reset-password ─────────────────────────────────────────────────────
+@router.post("/reset-password")
+async def reset_password_submit(
+    request:       Request,
+    access_token:  str = Form(...),
+    refresh_token: str = Form(""),
+    new_password:  str = Form(...),
+):
+    if len(new_password) < 6:
+        return RedirectResponse("/reset-password?error=Password+must+be+at+least+6+characters", status_code=302)
+    try:
+        client = get_client()
+        # Restore the session from the reset link tokens
+        client.auth.set_session(access_token, refresh_token)
+        client.auth.update_user({"password": new_password})
+
+        # Sign out all other sessions for security
+        try:
+            client.auth.sign_out()
+        except Exception:
+            pass
+
+        return RedirectResponse("/login?error=Password+updated.+Please+sign+in+with+your+new+password.", status_code=302)
+    except Exception as exc:
+        msg = str(exc).replace(" ", "+")
+        return RedirectResponse(f"/reset-password?error={msg}", status_code=302)

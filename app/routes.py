@@ -15,6 +15,8 @@ from app.config import (
     TWELVE_DATA_KEY, ALPHA_VANTAGE_KEY, FINNHUB_KEY, POLYGON_KEY,
     GEMINI_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY,
     NEWSAPI_KEY, FINNHUB_BASE,
+    OANDA_API_KEY, IG_API_KEY, TRADINGECONOMICS_KEY,
+    SUPABASE_URL, SMTP_HOST, SMTP_USER,
 )
 from app.auth import get_current_user
 from app.db import get_admin_client
@@ -289,28 +291,58 @@ async def search_stock(request: Request, q: str = ""):
 # ── API: provider status ──────────────────────────────────────────────────────
 @router.get("/api/providers")
 def api_providers():
+    """Raw JSON — kept for backward compat."""
+    return _build_provider_status()
+
+
+def _build_provider_status() -> dict:
+    from app.config import (
+        OANDA_API_KEY, IG_API_KEY, TRADINGECONOMICS_KEY,
+        SMTP_HOST, SMTP_USER,
+    )
     return {
-        "price_data": {
-            "twelve_data":   {"enabled": bool(TWELVE_DATA_KEY),   "priority": 1},
-            "alpha_vantage": {"enabled": bool(ALPHA_VANTAGE_KEY), "priority": 2},
-            "yahoo_finance": {"enabled": True, "priority": 3, "note": "no key required"},
-            "polygon":       {"enabled": bool(POLYGON_KEY),       "priority": 4, "note": "stocks only"},
-        },
-        "supplemental": {
-            "newsapi_sentiment":       {"enabled": bool(NEWSAPI_KEY)},
-            "alphavantage_sentiment":  {"enabled": bool(ALPHA_VANTAGE_KEY), "note": "fallback"},
-            "cftc_cot":                {"enabled": True, "note": "no key required"},
-            "finnhub_calendar":        {"enabled": bool(FINNHUB_KEY)},
-            "twelve_data_yields":      {"enabled": bool(TWELVE_DATA_KEY)},
-        },
-        "ai_summary": {
-            "gemini":     {"enabled": bool(GEMINI_API_KEY),    "priority": 1},
-            "groq":       {"enabled": bool(GROQ_API_KEY),      "priority": 2},
-            "openai":     {"enabled": bool(OPENAI_API_KEY),    "priority": 3},
-            "anthropic":  {"enabled": bool(ANTHROPIC_API_KEY), "priority": 4},
-            "rule_based": {"enabled": True,                    "priority": 5},
-        },
+        "price_data": [
+            {"name": "TwelveData",    "key": "TWELVE_DATA_KEY",   "enabled": bool(TWELVE_DATA_KEY),   "priority": 1, "note": "Primary OHLCV provider — supports all timeframes & pairs"},
+            {"name": "AlphaVantage",  "key": "ALPHA_VANTAGE_KEY", "enabled": bool(ALPHA_VANTAGE_KEY), "priority": 2, "note": "Fallback OHLCV + fundamental data"},
+            {"name": "Yahoo Finance", "key": "—",                 "enabled": True,                    "priority": 3, "note": "No key required — free fallback"},
+            {"name": "Polygon.io",    "key": "POLYGON_KEY",       "enabled": bool(POLYGON_KEY),       "priority": 4, "note": "Stocks only"},
+        ],
+        "ai_summary": [
+            {"name": "Google Gemini", "key": "GEMINI_API_KEY",    "enabled": bool(GEMINI_API_KEY),    "priority": 1, "note": "Primary AI summary"},
+            {"name": "Groq (LLaMA)",  "key": "GROQ_API_KEY",      "enabled": bool(GROQ_API_KEY),      "priority": 2, "note": "Fast fallback"},
+            {"name": "OpenAI GPT",    "key": "OPENAI_API_KEY",    "enabled": bool(OPENAI_API_KEY),    "priority": 3, "note": "Fallback"},
+            {"name": "Anthropic",     "key": "ANTHROPIC_API_KEY", "enabled": bool(ANTHROPIC_API_KEY), "priority": 4, "note": "Fallback"},
+            {"name": "Rule-Based",    "key": "—",                 "enabled": True,                    "priority": 5, "note": "Always available — no AI key needed"},
+        ],
+        "market_data": [
+            {"name": "Finnhub",          "key": "FINNHUB_KEY",       "enabled": bool(FINNHUB_KEY),       "note": "Economic calendar + COT data"},
+            {"name": "NewsAPI",          "key": "NEWSAPI_KEY",       "enabled": bool(NEWSAPI_KEY),       "note": "News sentiment scoring"},
+            {"name": "CFTC COT",         "key": "—",                 "enabled": True,                    "note": "Institutional positioning — free"},
+            {"name": "OANDA Sentiment",  "key": "OANDA_API_KEY",     "enabled": bool(OANDA_API_KEY),     "note": "Retail long/short positioning"},
+            {"name": "IG Sentiment",     "key": "IG_API_KEY",        "enabled": bool(IG_API_KEY),        "note": "Retail positioning fallback"},
+            {"name": "TradingEconomics", "key": "TRADINGECONOMICS_KEY", "enabled": bool(TRADINGECONOMICS_KEY), "note": "Enhanced macro indicators"},
+        ],
+        "infrastructure": [
+            {"name": "Supabase Auth",  "key": "SUPABASE_*",       "enabled": bool(SUPABASE_URL),      "note": "Authentication + database"},
+            {"name": "SMTP Email",     "key": "SMTP_HOST",        "enabled": bool(SMTP_HOST and SMTP_USER), "note": "Welcome + reset emails"},
+        ],
     }
+
+
+@router.get("/admin/api-status", response_class=HTMLResponse)
+async def admin_api_status(request: Request):
+    """Admin-only API status dashboard."""
+    user = await get_current_user(request)
+    if not user:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse("/login?next=/admin/api-status", status_code=302)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    status = _build_provider_status()
+    return templates.TemplateResponse(
+        request, "admin_api_status.html",
+        {"user": user, "status": status},
+    )
 
 
 # ── Background save helper ────────────────────────────────────────────────────

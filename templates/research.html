@@ -18,7 +18,7 @@
       </a>
       <div class="nav-links">
         <a href="/" class="nav-btn-ghost">Home</a>
-        <a href="/api/providers" target="_blank" class="nav-btn-ghost">API Status</a>
+        {% if user and user.is_admin %}<a href="/admin/users" class="nav-btn-ghost" style="color:var(--amber)">⚙ Super Admin</a>{% endif %}
         {% if user %}
         <a href="/dashboard" class="nav-btn-ghost">Dashboard</a>
         <span style="font-size:0.82rem;color:var(--muted);padding:0 0.25rem">{{ user.name }}</span>

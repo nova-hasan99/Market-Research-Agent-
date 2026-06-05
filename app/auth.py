@@ -56,6 +56,16 @@ async def get_current_user(request: Request) -> dict | None:
         except Exception:
             pass  # profile fetch is optional
 
+        # Fallback: if ADMIN_EMAIL is set in config and matches, grant admin
+        # This ensures the super admin always has access even if the profiles
+        # table is missing or the is_admin column isn't set.
+        try:
+            from app.config import ADMIN_EMAIL
+            if ADMIN_EMAIL and user["email"].lower() == ADMIN_EMAIL.lower():
+                user["is_admin"] = True
+        except Exception:
+            pass
+
         return user
     except Exception:
         return None

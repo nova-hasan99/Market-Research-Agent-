@@ -16,6 +16,10 @@ from app.routes_dashboard import router as dashboard_router
 
 app = FastAPI(title="Market Research Platform", version="3.0")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.head("/")
+async def health_head():
+    return
 app.include_router(auth_router)
 app.include_router(dashboard_router)
 app.include_router(router)

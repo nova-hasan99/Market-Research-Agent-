@@ -20,7 +20,7 @@
     <div class="nav-links">
       <a href="/research" class="nav-btn-ghost">Research</a>
       {% if user and user.is_admin %}
-      <button class="nav-btn-ghost" onclick="toggleAdminPanel()">Admin Panel</button>
+      <a href="/admin/users" class="nav-btn-ghost" style="color:var(--amber)">⚙ Super Admin</a>
       {% endif %}
       <span class="user-pill">
         <span class="user-dot"></span>
@@ -160,34 +160,6 @@
     </table>
   </div>
 
-  <!-- Admin Panel (admin only) -->
-  {% if user and user.is_admin %}
-  <div id="admin-panel" class="admin-panel hidden">
-    <div class="admin-panel-header">
-      <h2 class="admin-title">Users</h2>
-      <button class="tb-btn" onclick="loadAdminUsers()">Refresh</button>
-    </div>
-    <div id="admin-users-wrap">
-      <table class="db-table" id="admin-users-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Joined</th>
-            <th>Last Seen</th>
-            <th>Analyses</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="admin-users-body">
-          <tr><td colspan="7" class="empty-row">Click "Refresh" to load users.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endif %}
-
 </main>
 
 <!-- View Modal (iframe-based, full-screen) -->
@@ -246,8 +218,9 @@
 <script>
   window.__FOREX_ANALYSES__ = {{ forex_analyses | tojson }};
   window.__STOCK_ANALYSES__ = {{ stock_analyses | tojson }};
-  window.__IS_ADMIN__ = {{ 'true' if user and user.is_admin else 'false' }};
-  window.__USER_LOGGED_IN__ = true;
+  window.__IS_ADMIN__         = {{ 'true' if user and user.is_admin else 'false' }};
+  window.__CURRENT_USER_ID__  = "{{ user.id if user else '' }}";
+  window.__USER_LOGGED_IN__   = true;
 </script>
 
 <!-- Load app.js first (renderResults, etc.) -->
