@@ -5,11 +5,120 @@ let _lastData   = null;
 let _selectedTF = localStorage.getItem('preferred_tf') || '1d';
 
 /* ── Timeframe selector ───────────────────────────────────────────────────── */
+/* ── Timeframe note content ───────────────────────────────────────────────── */
+const _TF_NOTES = {
+  '1m': {
+    hold:   'Seconds to 5 minutes',
+    atr:    '1–3 pips (EUR/USD)',
+    best:   'London or NY open first 15 min — high volatility bursts',
+    risk:   'Spread cost eats profit quickly. Needs very tight execution.',
+    cap:    'Micro lots recommended. Use 0.5–1% risk per trade.',
+    color:  'var(--down)',
+    icon:   '⚡',
+  },
+  '5m': {
+    hold:   '5–30 minutes',
+    atr:    '3–7 pips (EUR/USD)',
+    best:   'Session opens or after high-impact news release',
+    risk:   'High noise. Many false signals. Very short holding window.',
+    cap:    'Mini lots. Strict SL discipline required.',
+    color:  'var(--down)',
+    icon:   '⚡',
+  },
+  '15m': {
+    hold:   '15–90 minutes',
+    atr:    '5–15 pips (EUR/USD)',
+    best:   'London session (08:00–12:00 UTC) or NY open (13:00–17:00 UTC)',
+    risk:   'Moderate noise. Watch for session overlap for best entries.',
+    cap:    'Mini lots. 1–2% risk per trade.',
+    color:  'var(--amber)',
+    icon:   '📊',
+  },
+  '1h': {
+    hold:   '1–8 hours (typically close same day)',
+    atr:    '10–20 pips (EUR/USD)',
+    best:   'London/NY overlap 13:00–17:00 UTC — highest liquidity window',
+    risk:   'Overnight gaps possible. Close before market-moving news.',
+    cap:    'Standard lots. 1–2% risk per trade.',
+    color:  'var(--amber)',
+    icon:   '📊',
+  },
+  '4h': {
+    hold:   'Several hours to 2 days',
+    atr:    '20–45 pips (EUR/USD)',
+    best:   'Any session — signals are less sensitive to intraday noise',
+    risk:   'Hold through sessions. Monitor daily news for SL adjustment.',
+    cap:    'Standard lots. 1–2% risk. Can hold overnight.',
+    color:  'var(--up)',
+    icon:   '📈',
+  },
+  '8h': {
+    hold:   '1–5 days',
+    atr:    '30–65 pips (EUR/USD)',
+    best:   'Trend-following setups after weekly bias is confirmed',
+    risk:   'Weekend gap risk if held into Friday close.',
+    cap:    'Standard lots. 1–2% risk. Multi-day holding.',
+    color:  'var(--up)',
+    icon:   '📈',
+  },
+  '1d': {
+    hold:   'Several days to 2–3 weeks',
+    atr:    '50–100 pips (EUR/USD)',
+    best:   'After weekly trend confirmation + Ichimoku cloud alignment',
+    risk:   'Major economic releases (NFP, CPI, central bank meetings) can invalidate.',
+    cap:    'Standard to large lots. 1–2% risk. Patient holding required.',
+    color:  'var(--up)',
+    icon:   '🏆',
+  },
+  '1w': {
+    hold:   'Several weeks to 3 months',
+    atr:    '100–300 pips (EUR/USD)',
+    best:   'Major macro trend changes — central bank policy divergence',
+    risk:   'Requires large capital buffer. Drawdowns can reach 200–500 pips.',
+    cap:    'Large lots or position sizing. 0.5–1% risk per trade.',
+    color:  'var(--blue)',
+    icon:   '🌐',
+  },
+  '1mo': {
+    hold:   '3–12 months',
+    atr:    '300–800 pips (EUR/USD)',
+    best:   'Macro investing — GDP cycles, rate cycles, long-term divergence',
+    risk:   'Extremely wide SL needed. Not suitable for leveraged retail accounts.',
+    cap:    'Institutional-level capital. Low leverage (1:2 to 1:5 max).',
+    color:  'var(--blue)',
+    icon:   '🌐',
+  },
+};
+
+function _renderTFNote(tf) {
+  const n = _TF_NOTES[tf];
+  if (!n) return '';
+  return `<div class="tf-note-inner" style="border-left-color:${n.color}">
+    <div class="tf-note-header">${n.icon} <strong>Timeframe Guide</strong></div>
+    <div class="tf-note-grid">
+      <div class="tf-note-item"><span class="tf-note-lbl">⏱ Hold Time</span><span class="tf-note-val">${n.hold}</span></div>
+      <div class="tf-note-item"><span class="tf-note-lbl">📏 Typical Range</span><span class="tf-note-val">${n.atr}</span></div>
+      <div class="tf-note-item"><span class="tf-note-lbl">✅ Best When</span><span class="tf-note-val">${n.best}</span></div>
+      <div class="tf-note-item"><span class="tf-note-lbl">⚠ Key Risk</span><span class="tf-note-val">${n.risk}</span></div>
+      <div class="tf-note-item"><span class="tf-note-lbl">💰 Position Size</span><span class="tf-note-val">${n.cap}</span></div>
+    </div>
+  </div>`;
+}
+
 function initTimeframes() {
   // Sync both dropdowns to the saved preference
   ['tf-select', 'tf-select-st'].forEach(id => {
     const sel = document.getElementById(id);
     if (sel) sel.value = _selectedTF;
+  });
+  _updateTFNotes(_selectedTF);
+}
+
+function _updateTFNotes(tf) {
+  const html = _renderTFNote(tf);
+  ['tf-note', 'tf-note-st'].forEach(id => {
+    const el2 = document.getElementById(id);
+    if (el2) el2.innerHTML = html;
   });
 }
 
@@ -21,6 +130,7 @@ function onTFChange(tf) {
     const sel = document.getElementById(id);
     if (sel && sel.value !== tf) sel.value = tf;
   });
+  _updateTFNotes(tf);
   _saveTFToServer(tf);
 }
 

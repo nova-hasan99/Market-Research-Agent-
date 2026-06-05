@@ -137,6 +137,7 @@
       {% endif %}
 
       <form class="auth-form" method="POST" action="/login">
+        <input type="hidden" name="next_url" value="{{ next }}" />
         <div class="auth-field">
           <label for="email">Email</label>
           <input type="email" id="email" name="email" placeholder="you@example.com" required autocomplete="email" />

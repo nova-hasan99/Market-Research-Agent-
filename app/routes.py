@@ -247,14 +247,18 @@ async def landing(request: Request):
 
 @router.get("/research", response_class=HTMLResponse)
 async def research_page(request: Request):
-    from app.auth import get_current_user
     user = await get_current_user(request)
+    if not user:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/login?next=/research", status_code=302)
     return templates.TemplateResponse(request, "research.html", {"user": user})
 
 
 # ── API: stock search ─────────────────────────────────────────────────────────
 @router.get("/api/search-stock")
-async def search_stock(q: str = ""):
+async def search_stock(request: Request, q: str = ""):
+    if not await get_current_user(request):
+        raise HTTPException(status_code=401, detail="Login required")
     if not q or len(q.strip()) < 1:
         return {"results": []}
     if not FINNHUB_KEY:
