@@ -30,6 +30,12 @@ SUPABASE_ACCESS_TOKEN = os.getenv("SUPABASE_ACCESS_TOKEN", "")  # Management API
 ADMIN_EMAIL = os.getenv("VITE_ADMIN_EMAIL", "")
 ADMIN_PASS  = os.getenv("VITE_ADMIN_PASSWORD", "")
 
+# ── Correlation & Sentiment ──────────────────────────────────────────────────
+OANDA_API_KEY        = os.getenv("OANDA_API_KEY", "")
+OANDA_ACCOUNT_ID     = os.getenv("OANDA_ACCOUNT_ID", "")
+IG_API_KEY           = os.getenv("IG_API_KEY", "")
+TRADINGECONOMICS_KEY = os.getenv("TRADINGECONOMICS_KEY", "")
+
 # ── Base URLs ────────────────────────────────────────────────────────────────
 TD_BASE       = "https://api.twelvedata.com/time_series"
 NEWSAPI_URL   = "https://newsapi.org/v2/everything"

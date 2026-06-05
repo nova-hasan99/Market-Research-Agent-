@@ -52,7 +52,24 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\('scripts/setup_db.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
       "Bash(node --check static/js/app.js)",
       "Bash(node --check static/js/dashboard.js)",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('app/routes_dashboard.py'\\).read\\(\\)\\); print\\('routes_dashboard.py OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app/routes_dashboard.py'\\).read\\(\\)\\); print\\('routes_dashboard.py OK'\\)\")",
+      "Bash(python -c \"import app.indicators; import app.analysis; import app.config; from app.providers.correlation import fetch_correlation; print\\('All imports OK'\\)\")",
+      "Bash(python -m py_compile app/indicators.py)",
+      "Bash(python -m py_compile app/analysis.py)",
+      "Bash(python -m py_compile app/config.py)",
+      "Bash(python -m py_compile app/routes.py)",
+      "Bash(python -m py_compile app/providers/correlation.py)",
+      "Bash(grep -v \"^.*//.*ichimoku\")",
+      "Bash(where python *)",
+      "Bash(pip show *)",
+      "Bash(dir /b *.cfg *.toml requirements*)",
+      "Bash(python3.11 -c \"import pandas; print\\('pandas OK', pandas.__version__\\)\")",
+      "Bash(py -3.11 -c \"import pandas; print\\('pandas OK'\\)\")",
+      "Bash(powershell \"Get-ChildItem -Path 'e:\\\\' -Filter 'python.exe' -Recurse -ErrorAction SilentlyContinue | Select -First 5 FullName\")",
+      "Bash(powershell \"Get-ChildItem -Path 'e:\\\\Developer Hub\\\\Trading' -Recurse -Filter 'python.exe' -ErrorAction SilentlyContinue | Select -First 3 FullName; Get-ChildItem -Path 'e:\\\\Developer Hub' -Recurse -Filter 'uvicorn.exe' -ErrorAction SilentlyContinue | Select -First 3 FullName\")",
+      "Bash(\"venv/Scripts/python.exe\" -c \"import pandas; import numpy; print\\('pandas', pandas.__version__, '| numpy', numpy.__version__\\)\")",
+      "Bash(\"venv/Scripts/python.exe\" test_system.py)",
+      "Bash(del \"e:\\\\Developer Hub\\\\Trading\\\\test_system.py\")"
     ]
   }
 }

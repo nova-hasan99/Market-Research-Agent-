@@ -13,6 +13,172 @@ def _vote(d: str) -> int:
     return 1 if d == "up" else -1 if d == "down" else 0
 
 
+# ── Asset-to-country mapping ──────────────────────────────────────────────────
+# Maps currency codes to the Finnhub country codes used in economic calendar events.
+# Finnhub uses ISO 3166-1 alpha-2 codes (US, GB, DE, JP, etc.).
+# EUR covers all major Eurozone economies since any ECB / EU-wide event
+# can be filed under any of these country codes.
+
+_CURRENCY_COUNTRIES: dict[str, list[str]] = {
+    "USD": ["US"],
+    "EUR": ["EU", "DE", "FR", "IT", "ES", "PT", "NL", "BE", "AT", "GR", "FI", "IE", "LU"],
+    "GBP": ["GB", "UK"],
+    "JPY": ["JP"],
+    "CHF": ["CH"],
+    "CAD": ["CA"],
+    "AUD": ["AU"],
+    "NZD": ["NZ"],
+    "CNY": ["CN"],
+    "HKD": ["HK"],
+    "SGD": ["SG"],
+    "SEK": ["SE"],
+    "NOK": ["NO"],
+    "DKK": ["DK"],
+    "MXN": ["MX"],
+    "ZAR": ["ZA"],
+    "TRY": ["TR"],
+    "BRL": ["BR"],
+    "INR": ["IN"],
+    "RUB": ["RU"],
+    "PLN": ["PL"],
+    "HUF": ["HU"],
+    "CZK": ["CZ"],
+    "KRW": ["KR"],
+    "TWD": ["TW"],
+    "THB": ["TH"],
+    "IDR": ["ID"],
+    "MYR": ["MY"],
+    "PHP": ["PH"],
+    "CLP": ["CL"],
+    "COP": ["CO"],
+    "ARS": ["AR"],
+    "PEN": ["PE"],
+    "ILS": ["IL"],
+    "SAR": ["SA"],
+    "AED": ["AE"],
+    "QAR": ["QA"],
+}
+
+# Stock exchanges mapped to their country code(s)
+_EXCHANGE_COUNTRIES: dict[str, list[str]] = {
+    "NASDAQ": ["US"],
+    "NYSE":   ["US"],
+    "US":     ["US"],
+    "LSE":    ["GB", "UK"],
+    "XETRA":  ["DE"],
+    "EURONEXT": ["FR", "NL", "BE", "PT"],
+    "TSE":    ["JP"],
+    "SSE":    ["CN"],
+    "SZSE":   ["CN"],
+    "BSE":    ["IN"],
+    "NSE":    ["IN"],
+    "ASX":    ["AU"],
+    "TSX":    ["CA"],
+    "HKEX":   ["HK"],
+    "KRX":    ["KR"],
+    "DEFAULT": ["US"],
+}
+
+# Event priority score — higher = more market-moving
+# Used to pick the SINGLE most critical risk from the filtered list.
+_EVENT_PRIORITY: dict[str, int] = {
+    # Tier 1 — Monetary policy (most market-moving)
+    "interest rate":      100,
+    "rate decision":      100,
+    "central bank":       100,
+    "fed funds":          100,
+    "fomc":               100,
+    "ecb":                95,
+    "boe":                95,
+    "rba":                95,
+    "rbnz":               95,
+    "boj":                95,
+    "snb":                95,
+    "boc":                95,
+    "monetary policy":    90,
+
+    # Tier 2 — Inflation & Labour (second most market-moving)
+    "cpi":                85,
+    "consumer price":     85,
+    "pce":                85,
+    "inflation":          82,
+    "non-farm":           85,
+    "nonfarm":            85,
+    "employment change":  80,
+    "unemployment rate":  78,
+    "jobs":               75,
+    "labour":             75,
+    "labor":              75,
+    "payroll":            80,
+
+    # Tier 3 — Growth
+    "gdp":                75,
+    "gross domestic":     75,
+
+    # Tier 4 — Activity indicators
+    "retail sales":       60,
+    "industrial production": 58,
+    "manufacturing":      55,
+    "pmi":                55,
+    "ism":                55,
+    "trade balance":      50,
+    "current account":    48,
+    "housing":            45,
+    "building permits":   43,
+    "consumer confidence": 42,
+    "business confidence": 40,
+    "sentiment":          38,
+}
+
+
+def _event_priority_score(event_name: str) -> int:
+    """Return the priority score for an event name (higher = more critical)."""
+    name_lower = (event_name or "").lower()
+    best = 0
+    for keyword, score in _EVENT_PRIORITY.items():
+        if keyword in name_lower and score > best:
+            best = score
+    return best
+
+
+def _asset_countries(symbol: str, asset_type: str) -> set[str]:
+    """
+    Return the set of relevant Finnhub country codes for the given asset.
+    For forex: map both currencies.
+    For stocks: default to US (can be extended with exchange detection).
+    """
+    if asset_type == "forex":
+        parts = symbol.upper().replace("-", "/").split("/")
+        codes: set[str] = set()
+        for currency in parts:
+            for country in _CURRENCY_COUNTRIES.get(currency, []):
+                codes.add(country.upper())
+        return codes
+    else:
+        # For stocks we default to US; caller can pass exchange info via symbol prefix
+        return set(_EXCHANGE_COUNTRIES.get("DEFAULT", ["US"]))
+
+
+def _filter_and_rank_events(events: list, relevant_countries: set[str]) -> list[dict]:
+    """
+    1. Discard events from countries NOT in relevant_countries.
+    2. Among remaining events, sort by: impact level first, then priority score.
+    Returns filtered + ranked list.
+    """
+    filtered = []
+    for ev in events:
+        country = str(ev.get("country") or "").upper().strip()
+        if country not in relevant_countries:
+            continue
+        priority = _event_priority_score(ev.get("event", ""))
+        impact   = str(ev.get("impact", "")).lower()
+        impact_w = 1000 if impact in ("high", "3") else 500 if impact in ("medium", "2") else 0
+        filtered.append({**ev, "_sort_key": impact_w + priority})
+
+    filtered.sort(key=lambda x: x["_sort_key"], reverse=True)
+    return filtered
+
+
 # ── Key signal finder ─────────────────────────────────────────────────────────
 
 def _find_key_signal(daily: dict, hourly: dict, cot: dict, sentiment: dict) -> dict:
@@ -63,32 +229,62 @@ def _find_key_signal(daily: dict, hourly: dict, cot: dict, sentiment: dict) -> d
 
 # ── Main risk finder ──────────────────────────────────────────────────────────
 
-def _find_main_risk(events: list, daily: dict, sentiment: dict, cot: dict) -> str:
-    # Imminent high-impact event
-    hi = [e for e in events if str(e.get("impact", "")).lower() in ("high", "3")]
-    if hi:
-        e = hi[0]
-        return f"High-impact {e.get('event', 'event')} ({e.get('country', '')})"
+def _find_main_risk(
+    events: list,
+    daily: dict,
+    sentiment: dict,
+    cot: dict,
+    symbol: str = "",
+    asset_type: str = "forex",
+) -> str:
+    """
+    Identify the single most critical risk for this specific asset.
 
-    # Extreme RSI
+    Step 1: Map asset to relevant countries (e.g. EUR/USD -> EU countries + US only).
+    Step 2: Discard ALL events from other countries (strict exclusion).
+    Step 3: From filtered events, pick the highest-priority one.
+    Step 4: Fall back to technical/macro risks if no relevant event found.
+    """
+    # Determine which countries are relevant for this asset
+    relevant = _asset_countries(symbol, asset_type)
+
+    # Filter and rank events by relevance + priority
+    ranked = _filter_and_rank_events(events, relevant)
+
+    # Use the top-ranked event if it's high-impact
+    if ranked:
+        top = ranked[0]
+        impact = str(top.get("impact", "")).lower()
+        name   = top.get("event", "event")
+        cc     = top.get("country", "")
+        if impact in ("high", "3"):
+            return f"{name} ({cc})"
+        # Medium-impact only if it scores highly (central bank, CPI, GDP)
+        if top.get("_sort_key", 0) >= 500 + 75:
+            return f"{name} ({cc})"
+
+    # No calendar risk — fall back to technical / positioning warnings
     if daily["rsi"] > 75:
         return f"Daily RSI Extreme Overbought ({daily['rsi']:.0f}) -- reversal risk"
     if daily["rsi"] < 25:
         return f"Daily RSI Extreme Oversold ({daily['rsi']:.0f}) -- reversal risk"
 
-    # COT reducing
     if (cot.get("available") and cot.get("weeks_trend") == "decreasing"
             and abs(cot.get("net", 0)) > 30000):
         return "Institutional positioning reducing -- potential trend shift"
 
-    # Sentiment vs technical divergence
     sent_lbl = sentiment.get("label", "neutral") if isinstance(sentiment, dict) else "neutral"
     if sent_lbl == "bearish" and daily["direction"] == "up":
         return "Bearish news sentiment conflicts with bullish technical bias"
     if sent_lbl == "bullish" and daily["direction"] == "down":
         return "Bullish news sentiment conflicts with bearish technical bias"
 
-    return "Monitor economic calendar for volatility triggers"
+    if relevant and ranked:
+        # There are medium-impact events for this pair
+        top = ranked[0]
+        return f"{top.get('event', 'event')} ({top.get('country', '')}) -- medium impact"
+
+    return "No major macroeconomic risk detected for this asset"
 
 
 # ── Conflict detector ─────────────────────────────────────────────────────────
@@ -136,13 +332,17 @@ def _detect_conflicts(daily: dict, hourly: dict, sentiment: dict, cot: dict) -> 
 # ── Main function ─────────────────────────────────────────────────────────────
 
 def compute_alignment(
-    hourly:      dict,
-    daily:       dict,
-    intermarket: dict,
-    sentiment:   dict,
-    cot:         dict,
-    events:      list,
-    asset_type:  str,
+    hourly:       dict,
+    daily:        dict,
+    intermarket:  dict,
+    sentiment:    dict,
+    cot:          dict,
+    events:       list,
+    asset_type:   str,
+    ichimoku:     dict | None = None,
+    volume:       dict | None = None,
+    weekly_bias:  str = "neutral",
+    symbol:       str = "",
 ) -> dict:
     """
     Point allocation (forex):
@@ -152,9 +352,12 @@ def compute_alignment(
         Institutional COT 15 pts  (forex only)
         Sentiment         12 pts
         Event clarity     10 pts
-        Total            100 pts
+        Ichimoku          10 pts
+        Volume confirm     5 pts
+        Weekly bias        8 pts (direction vote only)
+        Total            113 pts (forex), 80 pts (stock)
 
-    Stocks: max_raw = 67, rescaled to 100.
+    Stocks: max_raw = 80, rescaled to 100.
     """
     daily_pts  = daily["strength"]  * 25
     hourly_pts = hourly["strength"] * 20
@@ -186,6 +389,37 @@ def compute_alignment(
     weight    = 1.0 if asset_type == "forex" else 0.4
     event_pts = (1 - min(high_ev * weight, 3) / 3) * 10
 
+    # Ichimoku (replaces/supplements intermarket for direction voting)
+    ichi     = ichimoku if isinstance(ichimoku, dict) else {}
+    ichi_dir = ichi.get("direction", "neutral")
+    ichi_str = float(ichi.get("strength", 0))
+    ichi_pts = ichi_str * 10 if asset_type == "forex" else ichi_str * 8   # 0-10 pts
+
+    # Volume confirmation (modifier)
+    vol_data = volume if isinstance(volume, dict) else {}
+    vol_sig  = vol_data.get("signal", "neutral")
+    vol_pts  = 0.0
+
+    # Determine bias direction for volume confirmation check
+    _inter_w = 18 if asset_type == "forex" else 0
+    _cot_w   = 15 if asset_type == "forex" else 0
+    _net_prelim = (
+        _vote(daily["direction"])  * 25 +
+        _vote(hourly["direction"]) * 20 +
+        _vote(inter_dir)           * _inter_w +
+        _vote(cot_dir)             * _cot_w +
+        _vote(sent_dir)            * 12
+    )
+    _bias_prelim = "up" if _net_prelim > 5 else "down" if _net_prelim < -5 else "unclear"
+
+    if vol_data.get("available"):
+        if vol_sig == "bullish" and _vote(_bias_prelim) > 0:
+            vol_pts = 5.0
+        elif vol_sig == "bearish" and _vote(_bias_prelim) < 0:
+            vol_pts = 5.0
+        elif vol_data.get("divergence") != "none":
+            vol_pts = 2.0
+
     # Direction vote (weighted)
     inter_w = 18 if asset_type == "forex" else 0
     cot_w   = 15 if asset_type == "forex" else 0
@@ -194,18 +428,21 @@ def compute_alignment(
         _vote(hourly["direction"]) * 20 +
         _vote(inter_dir)           * inter_w +
         _vote(cot_dir)             * cot_w +
-        _vote(sent_dir)            * 12
+        _vote(sent_dir)            * 12 +
+        _vote(ichi_dir)            * 10 +
+        _vote(vol_sig)             *  5 +
+        _vote(weekly_bias)         *  8
     )
     bias = "up" if net > 5 else "down" if net < -5 else "unclear"
 
     # Normalise
-    raw     = daily_pts + hourly_pts + inter_pts + cot_pts + sent_pts + event_pts
-    max_pts = 100.0 if asset_type == "forex" else 67.0
+    raw     = daily_pts + hourly_pts + inter_pts + cot_pts + sent_pts + event_pts + ichi_pts + vol_pts
+    max_pts = 113.0 if asset_type == "forex" else 80.0
     score   = min(int(round(raw / max_pts * 100)), 100)
 
     # Key signal, main risk, conflicts
     key_signal = _find_key_signal(daily, hourly, ct, snt)
-    main_risk  = _find_main_risk(events, daily, snt, ct)
+    main_risk  = _find_main_risk(events, daily, snt, ct, symbol=symbol, asset_type=asset_type)
     conflicts  = _detect_conflicts(daily, hourly, snt, ct)
 
     return {
@@ -237,6 +474,19 @@ def compute_alignment(
                 "headlines":     snt.get("headlines", []),
             },
             "event_clarity":    {"points": round(event_pts, 1), "max": 10, "high_impact": high_ev},
+            "ichimoku":         {
+                "points":         round(ichi_pts, 1), "max": 10, "direction": ichi_dir,
+                "cloud_position": ichi.get("cloud_position"),
+                "tk_cross":       ichi.get("tk_cross"),
+                "available":      ichi.get("available", False),
+            },
+            "volume_confirmation": {
+                "points":    round(vol_pts, 1), "max": 5,
+                "signal":    vol_sig,
+                "divergence": vol_data.get("divergence", "none"),
+                "vol_ratio": vol_data.get("vol_ratio"),
+                "available": vol_data.get("available", False),
+            },
         },
     }
 
@@ -527,16 +777,20 @@ def _find_stock_main_risk(
     if sc >= 3 and sc > bc * 2:
         return f"Heavy insider selling detected ({sc} sell transactions)"
 
-    # High-impact event
-    hi = [e for e in events if str(e.get("impact", "")).lower() in ("high", "3")]
-    if hi:
-        return f"High-impact event: {hi[0].get('event', '')} ({hi[0].get('country', '')})"
+    # High-impact event (US-only for stocks unless symbol says otherwise)
+    relevant = _asset_countries("", "stock")   # defaults to US
+    ranked   = _filter_and_rank_events(events, relevant)
+    if ranked:
+        top    = ranked[0]
+        impact = str(top.get("impact", "")).lower()
+        if impact in ("high", "3") or top.get("_sort_key", 0) >= 500 + 75:
+            return f"High-impact event: {top.get('event', '')} ({top.get('country', '')})"
 
     # Earnings in 15-30 days (secondary warning)
     if days_away is not None and 15 <= days_away <= 30:
         return f"Earnings in {days_away} days ({next_date}) - monitor for volatility"
 
-    return "Monitor earnings calendar and macro news for unexpected catalysts"
+    return "No major macroeconomic risk detected"
 
 
 def _detect_stock_conflicts(
@@ -611,7 +865,11 @@ def compute_stock_alignment(
     insider:           dict | None = None,
     institutional:     dict | None = None,
     short_interest:    dict | None = None,
-    options_sentiment: dict | None = None,   # noqa: kept for future scoring
+    options_sentiment: dict | None = None,
+    ichimoku:          dict | None = None,
+    volume:            dict | None = None,
+    weekly_bias:       str = "neutral",
+    symbol:            str = "",
 ) -> dict:
     """
     Stock scoring (total 100 pts, plus +-3 modifier):
@@ -644,6 +902,31 @@ def compute_stock_alignment(
     sent_dir = "up" if s > 0 else "down" if s < 0 else "neutral"
     sent_pts = min(abs(s) / 0.5, 1.0) * 9
 
+    # Ichimoku
+    ichi     = ichimoku if isinstance(ichimoku, dict) else {}
+    ichi_dir = ichi.get("direction", "neutral")
+    ichi_str = float(ichi.get("strength", 0))
+    ichi_pts = ichi_str * 8
+
+    # Volume confirmation
+    vol_data = volume if isinstance(volume, dict) else {}
+    vol_sig  = vol_data.get("signal", "neutral")
+    vol_pts  = 0.0
+    _net_prelim = (
+        _vote(daily["direction"])  * 22 +
+        _vote(hourly["direction"]) * 18 +
+        _vote(fund_dir)            * 14 +
+        _vote(analyst_dir)         * 11
+    )
+    _bias_prelim = "up" if _net_prelim > 8 else "down" if _net_prelim < -8 else "unclear"
+    if vol_data.get("available"):
+        if vol_sig == "bullish" and _vote(_bias_prelim) > 0:
+            vol_pts = 5.0
+        elif vol_sig == "bearish" and _vote(_bias_prelim) < 0:
+            vol_pts = 5.0
+        elif vol_data.get("divergence") != "none":
+            vol_pts = 2.0
+
     # Direction vote (weighted)
     net = (
         _vote(daily["direction"])  * 22 +
@@ -653,11 +936,14 @@ def compute_stock_alignment(
         _vote(inst_dir)            *  8 +
         _vote(sent_dir)            *  9 +
         _vote(hist_dir)            *  9 +
-        _vote(earn_dir)            *  9
+        _vote(earn_dir)            *  9 +
+        _vote(ichi_dir)            *  8 +
+        _vote(vol_sig)             *  5 +
+        _vote(weekly_bias)         *  8
     )
     bias = "up" if net > 8 else "down" if net < -8 else "unclear"
 
-    raw   = daily_pts + hourly_pts + fund_pts + analyst_pts + inst_pts + sent_pts + hist_pts + earn_pts
+    raw   = daily_pts + hourly_pts + fund_pts + analyst_pts + inst_pts + sent_pts + hist_pts + earn_pts + ichi_pts + vol_pts
     score = max(0, min(100, int(round(raw + si_mod))))
 
     ins_data   = insider if isinstance(insider, dict) else {}
@@ -720,7 +1006,316 @@ def compute_stock_alignment(
                 "misses":    earnings.get("misses", 0),
                 "available": earnings.get("available", False),
             },
+            "ichimoku": {
+                "points":         round(ichi_pts, 1), "max": 8, "direction": ichi_dir,
+                "cloud_position": ichi.get("cloud_position"),
+                "tk_cross":       ichi.get("tk_cross"),
+                "available":      ichi.get("available", False),
+            },
+            "volume_confirmation": {
+                "points":    round(vol_pts, 1), "max": 5,
+                "signal":    vol_sig,
+                "divergence": vol_data.get("divergence", "none"),
+                "vol_ratio": vol_data.get("vol_ratio"),
+                "available": vol_data.get("available", False),
+            },
         },
+    }
+
+
+# ── Dynamic Trade Levels (TP/SL) ─────────────────────────────────────────────
+
+def compute_trade_levels(
+    daily:  dict,
+    hourly: dict,
+    bias:   str,
+    score:  int,
+    regime: dict | None = None,
+) -> dict | None:
+    """
+    Calculate Stop Loss and Take Profit levels using proper market structure.
+
+    SL Algorithm (priority order):
+        1. Kijun-sen (Ichimoku 26-period base line) + ATR buffer
+           -- Kijun is the most reliable structural level: price almost always
+              retraces to test it in a trending move, so SL must be BEYOND it.
+        2. Ichimoku cloud edge + ATR buffer (if Kijun not available)
+        3. Swing S/R level + ATR buffer (fallback)
+        4. 2.0x ATR projection (last resort)
+        SL is capped at 3.0x ATR so it never becomes absurdly wide.
+
+    TP Algorithm (priority order):
+        1. Fibonacci extensions (127.2%, 161.8%, 200%) from recent swing
+        2. Structural S/R levels on the target side
+        3. R:R projection from risk distance
+        TP1 >= 1.5:1, TP2 >= 2.5:1 AND >= 0.8x risk separation from TP1
+        (prevents TP1 and TP2 being only a few pips apart).
+    """
+    if bias not in ("up", "down"):
+        return None
+
+    price = float(daily.get("last_price", 0))
+    atr   = float(daily.get("atr_absolute", 0))
+
+    if price <= 0:
+        return None
+
+    # Derive ATR if missing
+    if atr <= 0:
+        atr = price * float(daily.get("volatility_atr_pct", 0.5)) / 100
+    if atr <= 0:
+        return None
+
+    # Regime-based SL buffer (fraction of ATR added beyond the structural level)
+    regime_label = (regime or {}).get("regime", "transitioning")
+    buf = 0.8 if regime_label == "trending" else 0.5 if regime_label == "ranging" else 0.6
+
+    # ── Ichimoku levels ────────────────────────────────────────────────────────
+    ichi         = daily.get("ichimoku") or {}
+    kijun        = ichi.get("kijun")
+    tenkan       = ichi.get("tenkan")
+    cloud_top    = ichi.get("cloud_top")
+    cloud_bottom = ichi.get("cloud_bottom")
+
+    # ── Swing S/R levels ──────────────────────────────────────────────────────
+    d_sup = float(daily.get("support",    price * 0.990))
+    d_res = float(daily.get("resistance", price * 1.010))
+    h_sup = float(hourly.get("support",   price * 0.995))
+    h_res = float(hourly.get("resistance",price * 1.005))
+
+    # ── Fibonacci data ─────────────────────────────────────────────────────────
+    fibs      = daily.get("fibonacci") or {}
+    ext_up    = fibs.get("extensions_up",   {})
+    ext_down  = fibs.get("extensions_down", {})
+
+    def _fib_levels_above(min_dist: float) -> list[float]:
+        """All Fibonacci extension levels above price by at least min_dist."""
+        out = []
+        for v in ext_up.values():
+            try:
+                fv = float(v)
+                if fv > price + min_dist:
+                    out.append(fv)
+            except (ValueError, TypeError):
+                pass
+        return sorted(out)
+
+    def _fib_levels_below(min_dist: float) -> list[float]:
+        """All Fibonacci extension levels below price by at least min_dist."""
+        out = []
+        for v in ext_down.values():
+            try:
+                fv = float(v)
+                if fv < price - min_dist:
+                    out.append(fv)
+            except (ValueError, TypeError):
+                pass
+        return sorted(out, reverse=True)   # nearest first
+
+    # ── SL calculation ─────────────────────────────────────────────────────────
+    sl_method = "structure"
+
+    if bias == "down":
+        # SELL: SL must be ABOVE current price
+        # Collect candidate SL levels (all must be > price)
+        sl_candidates: list[tuple[str, float]] = []
+
+        # Kijun above price → SL just above it
+        if kijun and float(kijun) > price:
+            sl_candidates.append(("kijun",     float(kijun) + atr * buf))
+
+        # Cloud top above price → SL just above it
+        if cloud_top and float(cloud_top) > price:
+            sl_candidates.append(("cloud_top", float(cloud_top) + atr * buf))
+
+        # Tenkan above price → shorter-term reference
+        if tenkan and float(tenkan) > price:
+            sl_candidates.append(("tenkan",    float(tenkan) + atr * buf))
+
+        # Swing resistance
+        if d_res > price:
+            sl_candidates.append(("d_res",     d_res + atr * buf))
+        if h_res > price:
+            sl_candidates.append(("h_res",     h_res + atr * buf))
+
+        # Filter: must clear price by at least 0.5x ATR, cap at 3x ATR
+        valid = [(lbl, sl) for lbl, sl in sl_candidates
+                 if sl - price >= atr * 0.5 and sl - price <= atr * 3.0]
+
+        if valid:
+            # Prefer Kijun if available; otherwise use nearest valid SL
+            kijun_sl = next(((l, s) for l, s in valid if l == "kijun"), None)
+            if kijun_sl:
+                sl_method, raw_sl = kijun_sl
+            else:
+                # Pick smallest (nearest to price) among valid structural levels
+                sl_method, raw_sl = min(valid, key=lambda x: x[1])
+        else:
+            # Fallback: 2x ATR above price
+            raw_sl   = price + atr * 2.0
+            sl_method = "atr_2x"
+
+        risk = raw_sl - price
+
+    else:
+        # BUY: SL must be BELOW current price
+        sl_candidates = []
+
+        if kijun and float(kijun) < price:
+            sl_candidates.append(("kijun",        float(kijun) - atr * buf))
+
+        if cloud_bottom and float(cloud_bottom) < price:
+            sl_candidates.append(("cloud_bottom", float(cloud_bottom) - atr * buf))
+
+        if tenkan and float(tenkan) < price:
+            sl_candidates.append(("tenkan",       float(tenkan) - atr * buf))
+
+        if d_sup < price:
+            sl_candidates.append(("d_sup",        d_sup - atr * buf))
+        if h_sup < price:
+            sl_candidates.append(("h_sup",        h_sup - atr * buf))
+
+        valid = [(lbl, sl) for lbl, sl in sl_candidates
+                 if price - sl >= atr * 0.5 and price - sl <= atr * 3.0]
+
+        if valid:
+            kijun_sl = next(((l, s) for l, s in valid if l == "kijun"), None)
+            if kijun_sl:
+                sl_method, raw_sl = kijun_sl
+            else:
+                sl_method, raw_sl = max(valid, key=lambda x: x[1])
+        else:
+            raw_sl    = price - atr * 2.0
+            sl_method = "atr_2x"
+
+        risk = price - raw_sl
+
+    if risk <= 0:
+        return None
+
+    # ── TP calculation ─────────────────────────────────────────────────────────
+    # Rules:
+    #   TP1 distance >= risk * 1.5 (1.5:1 R:R minimum)
+    #   TP2 distance >= risk * 2.5 (2.5:1 R:R minimum)
+    #   TP2 must also be >= risk * 0.8 BEYOND TP1 (meaningful separation)
+
+    MIN_RR1   = 1.5
+    MIN_RR2   = 2.5
+    MIN_SEP   = 0.8   # TP2 must be at least 0.8x risk away from TP1
+
+    if bias == "down":
+        # Targets below price
+        tp1_min_dist = risk * MIN_RR1
+        tp2_min_dist = risk * MIN_RR2
+
+        # TP1: nearest Fibonacci below price respecting min distance
+        fib_below = _fib_levels_below(tp1_min_dist)
+        struct_below = sorted(
+            [lvl for lvl in [h_sup, d_sup] if price - lvl >= tp1_min_dist],
+            key=lambda x: price - x,
+        )
+
+        tp1 = (fib_below[0]   if fib_below  else
+               struct_below[0] if struct_below else
+               price - risk * MIN_RR1)
+
+        # TP2: must satisfy both R:R and separation from TP1
+        tp2_floor = min(price - tp2_min_dist, tp1 - risk * MIN_SEP)
+
+        fib_tp2 = [f for f in fib_below if f <= tp2_floor]
+        struct_tp2 = sorted(
+            [lvl for lvl in [d_sup, h_sup] if lvl <= tp2_floor],
+            key=lambda x: tp2_floor - x,
+        )
+
+        tp2 = (fib_tp2[0]    if fib_tp2   else
+               struct_tp2[0]  if struct_tp2 else
+               tp2_floor)
+
+        # Final sanity
+        if tp2 >= tp1:
+            tp2 = tp1 - risk * MIN_SEP
+        if tp1 >= price:
+            tp1 = price - risk * MIN_RR1
+        if tp2 >= price:
+            tp2 = price - risk * MIN_RR2
+
+    else:
+        # Targets above price
+        tp1_min_dist = risk * MIN_RR1
+        tp2_min_dist = risk * MIN_RR2
+
+        fib_above = _fib_levels_above(tp1_min_dist)
+        struct_above = sorted(
+            [lvl for lvl in [h_res, d_res] if lvl - price >= tp1_min_dist],
+            key=lambda x: x - price,
+        )
+
+        tp1 = (fib_above[0]   if fib_above   else
+               struct_above[0] if struct_above else
+               price + risk * MIN_RR1)
+
+        tp2_floor = max(price + tp2_min_dist, tp1 + risk * MIN_SEP)
+
+        fib_tp2 = [f for f in fib_above if f >= tp2_floor]
+        struct_tp2 = sorted(
+            [lvl for lvl in [d_res, h_res] if lvl >= tp2_floor],
+            key=lambda x: x - tp2_floor,
+        )
+
+        tp2 = (fib_tp2[0]    if fib_tp2    else
+               struct_tp2[0]  if struct_tp2  else
+               tp2_floor)
+
+        if tp2 <= tp1:
+            tp2 = tp1 + risk * MIN_SEP
+        if tp1 <= price:
+            tp1 = price + risk * MIN_RR1
+        if tp2 <= price:
+            tp2 = price + risk * MIN_RR2
+
+    rr1 = round(abs(tp1 - price) / risk, 2)
+    rr2 = round(abs(tp2 - price) / risk, 2)
+
+    # Human-readable SL description for UI
+    _sl_desc = {
+        "kijun":        f"SL beyond Kijun-sen (Ichimoku base line: {round(float(kijun), 5) if kijun else '-'})",
+        "cloud_top":    f"SL above Ichimoku cloud top ({round(float(cloud_top), 5) if cloud_top else '-'})",
+        "cloud_bottom": f"SL below Ichimoku cloud bottom ({round(float(cloud_bottom), 5) if cloud_bottom else '-'})",
+        "tenkan":       f"SL beyond Tenkan-sen ({round(float(tenkan), 5) if tenkan else '-'})",
+        "d_res":        "SL beyond daily resistance",
+        "h_res":        "SL beyond hourly resistance",
+        "d_sup":        "SL beyond daily support",
+        "h_sup":        "SL beyond hourly support",
+        "atr_2x":       f"SL at 2x ATR (no structural level nearby)",
+        "structure":    "SL beyond structural S/R level",
+    }
+
+    if score >= 70:
+        size_hint = "Standard position size. Strong alignment."
+    elif score >= 55:
+        size_hint = "Reduced position size (50-75%). Moderate alignment."
+    elif score >= 40:
+        size_hint = "Minimal position size (25-50%). Weak alignment."
+    else:
+        size_hint = "No trade recommended. Conflicting signals."
+
+    return {
+        "bias":           bias,
+        "entry":          round(price,  6),
+        "sl":             round(raw_sl, 6),
+        "tp1":            round(tp1,    6),
+        "tp2":            round(tp2,    6),
+        "risk":           round(risk,   6),
+        "atr":            round(atr,    6),
+        "rr1":            rr1,
+        "rr2":            rr2,
+        "regime":         regime_label,
+        "atr_sl_buf":     buf,
+        "sl_method":      sl_method,
+        "sl_description": _sl_desc.get(sl_method, sl_method),
+        "kijun_ref":      round(float(kijun), 6) if kijun else None,
+        "size_hint":      size_hint,
     }
 
 

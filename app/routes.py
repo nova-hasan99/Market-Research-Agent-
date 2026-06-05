@@ -10,16 +10,23 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from app.ai import generate_ai_summary
-from app.analysis import compute_alignment, compute_stock_alignment
+from app.analysis import compute_alignment, compute_stock_alignment, compute_trade_levels
 from app.config import (
     TWELVE_DATA_KEY, ALPHA_VANTAGE_KEY, FINNHUB_KEY, POLYGON_KEY,
     GEMINI_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY,
     NEWSAPI_KEY, FINNHUB_BASE,
 )
+from app.auth import get_current_user
+from app.db import get_admin_client
 from app.deps import templates
-from app.indicators import analyze_timeframe, volatility_regime
+from app.indicators import analyze_timeframe, volatility_regime, get_session_info
 from app.models import AnalyzeRequest
+from app.timeframes import get_intervals, get_info as tf_info, validate as tf_validate
 from app.providers.calendar import fetch_events
+from app.patterns import analyze_patterns
+from app.providers.correlation import (
+    fetch_correlation, fetch_best_retail_sentiment, fetch_stock_correlation,
+)
 from app.providers.cot import fetch_cot
 from app.providers.intermarket import fetch_usd_strength
 from app.providers.price import fetch_ohlcv
@@ -33,6 +40,186 @@ from app.providers.stock_info import (
 from app.providers.yields import fetch_yield_differential
 
 router = APIRouter()
+
+# ── Forex pair normalisation ──────────────────────────────────────────────────
+# Standard market convention: higher-priority currency is always the BASE.
+# If user enters USD/EUR, we analyse EUR/USD and invert the result.
+_FX_PRIORITY: dict[str, int] = {
+    "EUR": 9, "GBP": 8, "AUD": 7, "NZD": 6,
+    "USD": 5, "CAD": 4, "CHF": 3, "JPY": 2,
+    # All others get 0 — alphabetical default
+}
+
+
+def _normalize_fx(base: str, quote: str) -> tuple[str, str, bool]:
+    """
+    Returns (std_base, std_quote, is_inverted).
+    is_inverted=True when the user's pair is the inverse of the standard pair.
+    Example: USD/EUR → returns ('EUR', 'USD', True)
+             EUR/USD → returns ('EUR', 'USD', False)
+             USD/JPY → returns ('USD', 'JPY', False)  # USD has higher priority than JPY
+    """
+    bp = _FX_PRIORITY.get(base,  0)
+    qp = _FX_PRIORITY.get(quote, 0)
+    if bp >= qp:
+        return base, quote, False
+    return quote, base, True
+
+
+def _inv(p: float) -> float:
+    """Invert a price (e.g., EUR/USD 1.1616 → USD/EUR 0.8609)."""
+    return round(1.0 / p, 6) if p and p != 0 else 0.0
+
+
+def _flip_dir(d: str) -> str:
+    return "up" if d == "down" else ("down" if d == "up" else d)
+
+
+def _invert_tf(tf: dict) -> dict:
+    """
+    Invert all directional signals in one timeframe analysis dict.
+    Called when the user requested the inverse of the standard pair.
+    """
+    if not tf:
+        return tf
+    tf = dict(tf)
+    lp = tf.get("last_price", 0)
+    if lp:
+        tf["last_price"] = _inv(lp)
+    # Invert RSI (RSI of inverse series ≈ 100 - RSI)
+    tf["rsi"]          = round(100.0 - tf.get("rsi", 50.0), 2)
+    tf["stoch_rsi_k"]  = round(100.0 - tf.get("stoch_rsi_k", 50.0), 2)
+    tf["stoch_rsi_d"]  = round(100.0 - tf.get("stoch_rsi_d", 50.0), 2)
+    # Negate slope (rising on EUR/USD = falling on USD/EUR)
+    tf["rsi_slope"]    = round(-tf.get("rsi_slope", 0.0), 4)
+    # Flip directional signals
+    tf["direction"]    = _flip_dir(tf.get("direction",  "neutral"))
+    tf["trend"]        = _flip_dir(tf.get("trend",      "neutral"))
+    tf["divergence"]   = _flip_dir(tf.get("divergence", "none"))
+    tf["macd_above_signal"] = not tf.get("macd_above_signal", False)
+    tf["ma20_above_ma50"]   = not tf.get("ma20_above_ma50",   False)
+    # Negate MACD histogram
+    tf["macd_histogram"] = round(-tf.get("macd_histogram", 0.0), 6)
+    # Invert support/resistance (support becomes resistance and vice-versa)
+    sup = tf.get("support",    0)
+    res = tf.get("resistance", 0)
+    tf["support"]    = _inv(res) if res else 0.0
+    tf["resistance"] = _inv(sup) if sup else 0.0
+    # ATR pct stays approximately the same (% moves are symmetric)
+    atr_abs = tf.get("atr_absolute", 0)
+    if atr_abs and lp:
+        tf["atr_absolute"] = round(atr_abs / (lp ** 2), 6)
+    # Ichimoku: invert prices, flip direction
+    ichi = tf.get("ichimoku", {})
+    if ichi and ichi.get("available"):
+        ichi = dict(ichi)
+        for key in ("tenkan", "kijun", "cloud_top", "cloud_bottom"):
+            if ichi.get(key):
+                ichi[key] = _inv(ichi[key])
+        ichi["cloud_position"] = _flip_dir(ichi.get("cloud_position", "neutral"))
+        ichi["tk_cross"]       = _flip_dir(ichi.get("tk_cross", "neutral"))
+        ichi["direction"]      = _flip_dir(ichi.get("direction", "neutral"))
+        tf["ichimoku"] = ichi
+    # Volume: flip divergence signal
+    vol = tf.get("volume", {})
+    if vol and vol.get("available"):
+        vol = dict(vol)
+        vol["direction"]  = _flip_dir(vol.get("direction", "neutral"))
+        vol["signal"]     = _flip_dir(vol.get("signal", "neutral"))
+        vol["divergence"] = _flip_dir(vol.get("divergence", "none"))
+        tf["volume"] = vol
+    # Fibonacci: invert price levels
+    fibs = tf.get("fibonacci", {})
+    if fibs:
+        fibs = dict(fibs)
+        sh = fibs.get("swing_high", 0)
+        sl_f = fibs.get("swing_low", 0)
+        if sh and sl_f:
+            fibs["swing_high"] = _inv(sl_f)
+            fibs["swing_low"]  = _inv(sh)
+        tf["fibonacci"] = fibs
+    return tf
+
+
+def _invert_trade_levels(tl: dict) -> dict:
+    """Invert all price levels in a trade_levels dict."""
+    if not tl:
+        return tl
+    tl = dict(tl)
+    entry = _inv(tl.get("entry", 0))
+    sl    = _inv(tl.get("sl",    0))
+    tp1   = _inv(tl.get("tp1",   0))
+    tp2   = _inv(tl.get("tp2",   0))
+    risk  = abs(entry - sl)
+    rr1   = round(abs(tp1 - entry) / risk, 2) if risk else 0.0
+    rr2   = round(abs(tp2 - entry) / risk, 2) if risk else 0.0
+    kijun = tl.get("kijun_ref")
+    return {
+        **tl,
+        "bias":           _flip_dir(tl.get("bias", "unclear")),
+        "entry":          entry,
+        "sl":             sl,
+        "tp1":            tp1,
+        "tp2":            tp2,
+        "risk":           round(risk, 6),
+        "rr1":            rr1,
+        "rr2":            rr2,
+        "kijun_ref":      _inv(kijun) if kijun else None,
+        "sl_description": tl.get("sl_description", ""),
+    }
+
+
+def _invert_forex_response(response: dict, user_display: str) -> dict:
+    """
+    Post-process a forex analysis response to invert all signals
+    when the user requested a non-standard pair (e.g., USD/EUR instead of EUR/USD).
+    """
+    response = dict(response)
+
+    # Core signals
+    response["bias"]       = _flip_dir(response.get("bias", "unclear"))
+    response["last_price"] = _inv(response.get("last_price", 0))
+    response["asset"]      = user_display
+
+    # Timeframes
+    tfs = response.get("timeframes", {})
+    response["timeframes"] = {k: _invert_tf(v) for k, v in tfs.items()}
+
+    # Weekly
+    if response.get("weekly"):
+        response["weekly"] = _invert_tf(response["weekly"])
+
+    # Trade levels
+    if response.get("trade_levels"):
+        response["trade_levels"] = _invert_trade_levels(response["trade_levels"])
+
+    # Key signal direction
+    ks = response.get("key_signal")
+    if isinstance(ks, dict):
+        ks = dict(ks)
+        ks["direction"] = _flip_dir(ks.get("direction", "neutral"))
+        response["key_signal"] = ks
+
+    # Score breakdown: flip component directions (scores stay same — they measure strength)
+    comps = response.get("components") or response.get("breakdown", {})
+    if isinstance(comps, dict):
+        flipped = {}
+        for k, v in comps.items():
+            if isinstance(v, dict) and "direction" in v:
+                v = dict(v)
+                v["direction"] = _flip_dir(v["direction"])
+            flipped[k] = v
+        # Store in whichever key exists
+        if "components" in response:
+            response["components"] = flipped
+        if "breakdown" in response:
+            response["breakdown"] = flipped
+
+    # Add a note so the UI can show "Analysed as EUR/USD (standard form)"
+    response["pair_note"] = f"Non-standard pair — analysed as {response.get('inverted_from', '')} with inverted signals"
+    response["is_inverted_pair"] = True
+
+    return response
 
 _EMPTY_COT  = {"net": 0, "direction": "neutral", "label": "No Data",
                "weeks_trend": "unknown", "available": False}
@@ -154,47 +341,92 @@ async def analyze(req: AnalyzeRequest, request: Request):
 
     # Build symbols
     if req.asset_type == "forex":
-        quote     = (req.quote or "USD").upper()
-        symbol    = f"{req.symbol.upper()}/{quote}"
-        news_tick = f"FOREX:{req.symbol.upper()}{quote}"
-        display   = symbol
+        req_base  = req.symbol.upper()
+        req_quote = (req.quote or "USD").upper()
+        # Normalise to standard market pair ordering (e.g. USD/EUR → EUR/USD)
+        std_base, std_quote, is_inverted = _normalize_fx(req_base, req_quote)
+        symbol    = f"{std_base}/{std_quote}"
+        news_tick = f"FOREX:{std_base}{std_quote}"
+        display   = f"{req_base}/{req_quote}"   # user's notation for UI
     else:
         symbol    = req.symbol.upper()
         news_tick = symbol
         display   = symbol
+        is_inverted = False
+
+    # ── Resolve timeframe intervals ───────────────────────────────────────────
+    tf_key              = tf_validate(req.timeframe)
+    primary_iv, secondary_iv, context_iv = get_intervals(tf_key)
+    tf_meta             = tf_info(tf_key)
 
     # ── Fetch all data concurrently ───────────────────────────────────────────
     async with httpx.AsyncClient(timeout=45) as client:
 
         if req.asset_type == "forex":
             # ── FOREX path ────────────────────────────────────────────────
-            (hourly_df, h_prov), (daily_df, d_prov) = await asyncio.gather(
-                fetch_ohlcv(client, symbol, "1h",   "forex"),
-                fetch_ohlcv(client, symbol, "1day", "forex"),
+            # Fetch secondary (entry TF), primary (analysis TF), context (trend TF)
+            ohlcv_results = await asyncio.gather(
+                fetch_ohlcv(client, symbol, secondary_iv, "forex"),
+                fetch_ohlcv(client, symbol, primary_iv,   "forex"),
+                fetch_ohlcv(client, symbol, context_iv,   "forex"),
+                return_exceptions=True,
             )
+            (hourly_df, h_prov) = ohlcv_results[0] if not isinstance(ohlcv_results[0], Exception) else (None, "None")
+            (daily_df,  d_prov) = ohlcv_results[1] if not isinstance(ohlcv_results[1], Exception) else (None, "None")
+            weekly_result       = ohlcv_results[2]
+
+            # If required timeframes failed, raise
+            if hourly_df is None:
+                raise ohlcv_results[0]
+            if daily_df is None:
+                raise ohlcv_results[1]
+
             sec = await asyncio.gather(
                 fetch_sentiment(client, news_tick),
                 fetch_events(client),
                 fetch_cot(client, symbol, "forex"),
                 fetch_usd_strength(client),
                 fetch_yield_differential(client),
+                fetch_correlation(client, symbol),
+                fetch_best_retail_sentiment(client, symbol),
                 return_exceptions=True,
             )
             def _ok(i):
                 return not isinstance(sec[i], Exception) if i < len(sec) else False
 
-            sentiment   = sec[0] if _ok(0) else {"score": 0.0, "label": "neutral", "article_count": 0, "headlines": []}
-            events      = sec[1] if _ok(1) else []
-            cot         = sec[2] if _ok(2) else _EMPTY_COT
-            intermarket = sec[3] if _ok(3) else _EMPTY_IM
-            yield_diff  = sec[4] if _ok(4) else _EMPTY_YLD
+            sentiment    = sec[0] if _ok(0) else {"score": 0.0, "label": "neutral", "article_count": 0, "headlines": []}
+            events       = sec[1] if _ok(1) else []
+            cot          = sec[2] if _ok(2) else _EMPTY_COT
+            intermarket  = sec[3] if _ok(3) else _EMPTY_IM
+            yield_diff   = sec[4] if _ok(4) else _EMPTY_YLD
+            correlation  = sec[5] if _ok(5) else {"available": False}
+            retail_sent  = sec[6] if _ok(6) else {"available": False}
 
             hourly = analyze_timeframe(hourly_df)
             daily  = analyze_timeframe(daily_df)
             regime = volatility_regime(daily_df)
 
+            # Weekly timeframe (optional - graceful fallback)
+            weekly = None
+            weekly_bias = "neutral"
+            try:
+                if not isinstance(weekly_result, Exception):
+                    weekly_df, _ = weekly_result
+                    weekly = analyze_timeframe(weekly_df)
+                    weekly_bias = weekly.get("direction", "neutral")
+            except Exception:
+                weekly = None
+                weekly_bias = "neutral"
+
+            session_info = get_session_info()
+            patterns     = analyze_patterns(daily_df)
+
             scored = compute_alignment(
-                hourly, daily, intermarket, sentiment, cot, events, "forex"
+                hourly, daily, intermarket, sentiment, cot, events, "forex",
+                ichimoku=daily.get("ichimoku"),
+                volume=daily.get("volume"),
+                weekly_bias=weekly_bias,
+                symbol=symbol,
             )
 
             response: dict = {
@@ -204,6 +436,9 @@ async def analyze(req: AnalyzeRequest, request: Request):
                 "score":             scored["alignment_score"],
                 "bias":              scored["bias"],
                 "last_price":        daily["last_price"],
+                "timeframe":         tf_key,
+                "timeframe_label":   tf_meta["name"],
+                "timeframe_desc":    tf_meta["trade_type"],
                 "timeframes":        {"hourly": hourly, "daily": daily},
                 "breakdown":         scored["components"],
                 "key_signal":        scored["key_signal"],
@@ -223,16 +458,41 @@ async def analyze(req: AnalyzeRequest, request: Request):
                 "short_interest":    None,
                 "institutional":     None,
                 "options_sentiment": None,
+                "weekly":            weekly,
+                "session":           session_info,
+                "correlation":       correlation,
+                "retail_sentiment":  retail_sent,
+                "patterns":          patterns,
                 "providers_used":    {"hourly_data": h_prov, "daily_data": d_prov},
+                "trade_levels":      compute_trade_levels(
+                                         daily, hourly,
+                                         scored["bias"], scored["alignment_score"],
+                                         regime,
+                                     ),
             }
+
+            # ── Invert response if user requested non-standard pair ────────
+            if is_inverted:
+                response["inverted_from"] = f"{std_base}/{std_quote}"
+                response = _invert_forex_response(response, display)
 
         else:
             # ── STOCK path ─────────────────────────────────────────────────
             # Phase 1: OHLCV (required; propagate failures as 500)
-            (hourly_df, h_prov), (daily_df, d_prov) = await asyncio.gather(
-                fetch_ohlcv(client, symbol, "1h",   "stock"),
-                fetch_ohlcv(client, symbol, "1day", "stock"),
+            ohlcv_results_s = await asyncio.gather(
+                fetch_ohlcv(client, symbol, secondary_iv, "stock"),
+                fetch_ohlcv(client, symbol, primary_iv,   "stock"),
+                fetch_ohlcv(client, symbol, context_iv,   "stock"),
+                return_exceptions=True,
             )
+            (hourly_df, h_prov) = ohlcv_results_s[0] if not isinstance(ohlcv_results_s[0], Exception) else (None, "None")
+            (daily_df,  d_prov) = ohlcv_results_s[1] if not isinstance(ohlcv_results_s[1], Exception) else (None, "None")
+            weekly_result_s     = ohlcv_results_s[2]
+
+            if hourly_df is None:
+                raise ohlcv_results_s[0]
+            if daily_df is None:
+                raise ohlcv_results_s[1]
 
             # Phase 2: supplemental data (all optional; exceptions return fallbacks)
             (sentiment, events, fundamentals, earnings, insider, history,
@@ -267,6 +527,21 @@ async def analyze(req: AnalyzeRequest, request: Request):
             daily  = analyze_timeframe(daily_df)
             regime = volatility_regime(daily_df)
 
+            # Weekly timeframe (optional - graceful fallback)
+            weekly_s    = None
+            weekly_bias_s = "neutral"
+            try:
+                if not isinstance(weekly_result_s, Exception):
+                    weekly_df_s, _ = weekly_result_s
+                    weekly_s = analyze_timeframe(weekly_df_s)
+                    weekly_bias_s = weekly_s.get("direction", "neutral")
+            except Exception:
+                weekly_s    = None
+                weekly_bias_s = "neutral"
+
+            session_info_s = get_session_info()
+            patterns_s     = analyze_patterns(daily_df)
+
             analyst, sector_perf = await asyncio.gather(
                 fetch_stock_analyst(client, symbol),
                 fetch_sector_performance(client, fundamentals.get("sector")),
@@ -274,6 +549,15 @@ async def analyze(req: AnalyzeRequest, request: Request):
             )
             analyst     = _safe(analyst,     _EMPTY_ANA)
             sector_perf = _safe(sector_perf, _EMPTY_SECT)
+
+            # Stock benchmark correlation (after sector_perf so we can pass etf ticker)
+            try:
+                stock_corr = await fetch_stock_correlation(
+                    client, symbol,
+                    sector_etf=sector_perf.get("etf") if isinstance(sector_perf, dict) else None,
+                )
+            except Exception:
+                stock_corr = {"available": False}
 
             # Compute analyst price-target upside now that we have the current price
             if analyst.get("available") and analyst.get("price_target_mean") and daily["last_price"]:
@@ -310,6 +594,10 @@ async def analyze(req: AnalyzeRequest, request: Request):
                 institutional=institutional,
                 short_interest=short_interest,
                 options_sentiment=options_sentiment,
+                ichimoku=daily.get("ichimoku"),
+                volume=daily.get("volume"),
+                weekly_bias=weekly_bias_s,
+                symbol=symbol,
             )
 
             response: dict = {
@@ -319,6 +607,9 @@ async def analyze(req: AnalyzeRequest, request: Request):
                 "score":             scored["alignment_score"],
                 "bias":              scored["bias"],
                 "last_price":        daily["last_price"],
+                "timeframe":         tf_key,
+                "timeframe_label":   tf_meta["name"],
+                "timeframe_desc":    tf_meta["trade_type"],
                 "timeframes":        {"hourly": hourly, "daily": daily},
                 "breakdown":         scored["components"],
                 "key_signal":        scored["key_signal"],
@@ -338,7 +629,17 @@ async def analyze(req: AnalyzeRequest, request: Request):
                 "short_interest":    short_interest,
                 "institutional":     institutional,
                 "options_sentiment": options_sentiment,
+                "weekly":            weekly_s,
+                "session":           session_info_s,
+                "patterns":          patterns_s,
+                "correlation":       stock_corr,
+                "retail_sentiment":  None,
                 "providers_used":    {"hourly_data": h_prov, "daily_data": d_prov},
+                "trade_levels":      compute_trade_levels(
+                                         daily, hourly,
+                                         scored["bias"], scored["alignment_score"],
+                                         regime,
+                                     ),
             }
 
     # ── Generate AI summary ───────────────────────────────────────────────────
@@ -351,3 +652,45 @@ async def analyze(req: AnalyzeRequest, request: Request):
     asyncio.create_task(_save_analysis_bg(_user["id"], response))
 
     return response
+
+
+# ── User Preferences ──────────────────────────────────────────────────────────
+
+@router.post("/api/preferences")
+async def save_preference(request: Request) -> dict:
+    """
+    Save user preferences (e.g. preferred timeframe) to Supabase user metadata.
+    Silent fail — frontend uses localStorage as primary, this is just DB sync.
+    """
+    user = await get_current_user(request)
+    if not user:
+        return {"ok": False, "reason": "not_logged_in"}
+    try:
+        body = await request.json()
+        tf   = tf_validate(body.get("timeframe", "1d"))
+        admin = get_admin_client()
+        admin.auth.admin.update_user_by_id(
+            user["id"],
+            {"user_metadata": {"preferred_tf": tf}},
+        )
+        return {"ok": True, "timeframe": tf}
+    except Exception:
+        return {"ok": False, "reason": "db_error"}
+
+
+@router.get("/api/preferences")
+async def load_preference(request: Request) -> dict:
+    """Load user preferences from Supabase. Returns defaults if not logged in."""
+    user = await get_current_user(request)
+    if not user:
+        return {"timeframe": "1d"}
+    try:
+        from supabase import create_client
+        from app.config import SUPABASE_URL, SUPABASE_SERVICE_KEY
+        admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        data  = admin.auth.admin.get_user_by_id(user["id"])
+        meta  = data.user.user_metadata or {}
+        tf    = tf_validate(meta.get("preferred_tf", "1d"))
+        return {"timeframe": tf}
+    except Exception:
+        return {"timeframe": "1d"}

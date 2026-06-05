@@ -77,10 +77,20 @@
           <tr><td class="qs-label">Hourly RSI</td><td class="qs-val" id="qs-hrsi">-</td></tr>
           <tr><td class="qs-label">Daily Trend</td><td class="qs-val" id="qs-dtrend">-</td></tr>
           <tr><td class="qs-label">Daily MACD</td><td class="qs-val" id="qs-dmacd">-</td></tr>
+          <tr><td class="qs-label">Stoch RSI</td><td class="qs-val" id="qs-stochrsi">-</td></tr>
+          <tr><td class="qs-label">Weekly Trend</td><td class="qs-val" id="qs-weekly">-</td></tr>
           <tr><td class="qs-label">Volatility ATR%</td><td class="qs-val" id="qs-atr">-</td></tr>
           <tr><td class="qs-label">Sentiment</td><td class="qs-val" id="qs-sent">-</td></tr>
         </table>
       </div>
+    </div>
+
+    <!-- Session Info Bar -->
+    <div class="session-bar" id="session-bar">
+      <span id="session-dot" class="session-dot"></span>
+      <span id="session-label">-</span>
+      <span class="session-sep">|</span>
+      <span id="session-pairs"></span>
     </div>
 
     <!-- Key Signal + Main Risk -->
@@ -132,11 +142,55 @@
             <div id="tg-conf-advice" class="tg-conf-advice">-</div>
           </div>
           <div class="tg-disclaimer">
-            These are calculated reference levels based on signal analysis.<br>
+            <span id="tg-trade-type" style="display:block;font-weight:600;color:var(--blue);margin-bottom:0.3rem">Daily - Swing trading</span>
+            Levels calculated for the selected timeframe.<br>
             Always use a stop loss and manage risk. Not financial advice.
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Volume Analysis -->
+    <div class="card" id="volume-card">
+      <div class="card-header">
+        <span class="card-title">Volume Analysis</span>
+        <span id="vol-badge" class="dir-badge">-</span>
+      </div>
+      <div class="vol-main" id="vol-main">-</div>
+      <table class="data-table" style="margin-top:0.75rem">
+        <tbody>
+          <tr><td>OBV Direction</td><td class="qs-val" id="vol-obv-dir">-</td></tr>
+          <tr><td>Volume vs Avg</td><td class="qs-val" id="vol-ratio">-</td></tr>
+          <tr><td>OBV Divergence</td><td class="qs-val" id="vol-divergence">-</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Ichimoku Cloud -->
+    <div class="card" id="ichimoku-card">
+      <div class="card-header">
+        <span class="card-title">Ichimoku Cloud</span>
+        <span id="ichi-badge" class="dir-badge">-</span>
+      </div>
+      <div class="ichi-cloud-bar" id="ichi-cloud-bar"></div>
+      <table class="data-table" style="margin-top:0.75rem">
+        <tbody>
+          <tr><td>Cloud Position</td><td class="qs-val" id="ichi-cloud-pos">-</td></tr>
+          <tr><td>TK Cross</td><td class="qs-val" id="ichi-tk">-</td></tr>
+          <tr><td>Tenkan</td><td class="qs-val" id="ichi-tenkan">-</td></tr>
+          <tr><td>Kijun</td><td class="qs-val" id="ichi-kijun">-</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pattern Analysis -->
+    <div class="card" id="patterns-card">
+      <div class="card-header">
+        <span class="card-title">📐 Pattern Analysis</span>
+        <span id="patterns-badge" class="dir-badge neutral">Scanning...</span>
+      </div>
+      <div id="patterns-summary" class="patterns-summary">-</div>
+      <div id="patterns-list" class="patterns-list"></div>
     </div>
 
     <!-- AI Summary -->
@@ -176,6 +230,44 @@
         <div class="levels-row">
           <div class="level-box"><span class="level-label">Support</span><span class="level-val down" id="h-support">-</span></div>
           <div class="level-box"><span class="level-label">Resistance</span><span class="level-val up" id="h-resistance">-</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pair Correlation (forex) / Benchmark (stock) -->
+    <div class="two-col" id="correlation-card">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Dollar Index (DXY)</span>
+          <span id="dxy-badge" class="dir-badge">-</span>
+        </div>
+        <div class="dxy-value" id="dxy-value">-</div>
+        <table class="data-table" style="margin-top:0.75rem">
+          <tbody>
+            <tr><td>DXY Value</td><td class="qs-val" id="dxy-val">-</td></tr>
+            <tr><td>DXY Change</td><td class="qs-val" id="dxy-chg">-</td></tr>
+            <tr><td>Direction</td><td class="qs-val" id="dxy-dir">-</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Related Pairs</span>
+          <span id="retail-badge" class="dir-badge neutral" style="display:none">Retail</span>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Pair</th><th>3-Day Change</th><th>Direction</th></tr></thead>
+          <tbody id="corr-pairs-body"></tbody>
+        </table>
+        <div id="retail-sent-row" style="display:none;margin-top:0.75rem">
+          <div class="ys-header">Retail Positioning (Contrarian)</div>
+          <table class="data-table" style="margin-top:0.4rem">
+            <tbody>
+              <tr><td>Retail Long</td><td class="qs-val" id="retail-long">-</td></tr>
+              <tr><td>Retail Short</td><td class="qs-val" id="retail-short">-</td></tr>
+              <tr><td>Signal</td><td class="qs-val" id="retail-signal">-</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

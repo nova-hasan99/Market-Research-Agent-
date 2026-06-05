@@ -345,6 +345,17 @@ a { text-decoration: none; color: inherit; }
 
 /* Breakdown grid */
 .breakdown-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.75rem; }
+.bd-formula {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.6rem 1rem;
+  background: rgba(59,130,246,0.06);
+  border: 1px solid rgba(59,130,246,0.2);
+  border-radius: 8px; cursor: help;
+}
+.bd-formula-label { font-size: 0.76rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.bd-formula-calc  { font-size: 0.88rem; color: var(--text); }
+.bd-formula-calc strong { color: var(--blue); font-size: 1rem; }
 .bd-card {
   background: var(--card2); border: 1px solid var(--border);
   border-radius: 10px; padding: 0.85rem; text-align: center;
@@ -1071,4 +1082,95 @@ tr[data-tip]:hover > td { background: rgba(59,130,246,0.08) !important; transiti
 @media (max-width: 680px) {
   .fund-metrics-grid { grid-template-columns: repeat(2, 1fr); }
   .analyst-bar-legend { font-size: 0.72rem; }
+}
+
+/* ─── Session Info Bar ───────────────────────────────────────────────────── */
+.session-bar {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.5rem 0.9rem; border-radius: 8px;
+  background: var(--card2); border: 1px solid var(--border);
+  font-size: 0.82rem; color: var(--muted);
+  flex-wrap: wrap;
+}
+.session-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--muted); flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+.session-sep { color: var(--border2); }
+
+/* ─── Volume Analysis Card ───────────────────────────────────────────────── */
+.vol-main {
+  font-size: 0.9rem; color: var(--text);
+  margin: 0.4rem 0 0.1rem; line-height: 1.45;
+}
+
+/* ─── Ichimoku Cloud Card ────────────────────────────────────────────────── */
+.ichi-cloud-bar {
+  margin-bottom: 0.75rem;
+}
+
+/* ─── Correlation / DXY Card ────────────────────────────────────────────── */
+.dxy-value {
+  font-size: 1.2rem; font-weight: 700; margin: 0.4rem 0 0.1rem;
+  color: var(--text);
+}
+.ys-header {
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 0.35rem;
+}
+
+/* ── Pattern Analysis Card ─────────────────────────────────────────────────── */
+.patterns-summary {
+  font-size: 0.9rem; color: var(--text); margin-bottom: 1rem;
+  padding: 0.65rem 0.9rem;
+  background: rgba(59, 130, 246, 0.05);
+  border-left: 3px solid var(--blue);
+  border-radius: 0 6px 6px 0;
+  line-height: 1.5;
+}
+.patterns-list { display: flex; flex-direction: column; gap: 0.65rem; }
+.pattern-item {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+.pattern-header {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.4rem; flex-wrap: wrap;
+}
+.pattern-tag  { font-size: 1rem; }
+.pattern-name {
+  font-weight: 700; font-size: 0.92rem;
+}
+.pattern-name.up   { color: var(--up); }
+.pattern-name.down { color: var(--down); }
+.pattern-name.neutral { color: var(--text); }
+.pattern-stars { font-size: 0.8rem; letter-spacing: 0.05em; }
+.pattern-desc  { font-size: 0.83rem; color: var(--muted); line-height: 1.5; }
+
+/* ── Timeframe Dropdown ─────────────────────────────────────────────────────── */
+.tf-form-group {
+  flex-shrink: 0;
+}
+.tf-select {
+  height: 42px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0 0.65rem;
+  font-size: 0.85rem;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 148px;
+  transition: border-color 0.15s;
+  appearance: auto;
+}
+.tf-select:hover,
+.tf-select:focus {
+  border-color: var(--blue);
+  outline: none;
 }

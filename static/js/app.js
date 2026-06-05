@@ -2,6 +2,49 @@
 let currentTab  = 'forex';
 let selectedTZ  = Intl.DateTimeFormat().resolvedOptions().timeZone;
 let _lastData   = null;
+let _selectedTF = localStorage.getItem('preferred_tf') || '1d';
+
+/* ── Timeframe selector ───────────────────────────────────────────────────── */
+function initTimeframes() {
+  // Sync both dropdowns to the saved preference
+  ['tf-select', 'tf-select-st'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel) sel.value = _selectedTF;
+  });
+}
+
+function onTFChange(tf) {
+  _selectedTF = tf;
+  localStorage.setItem('preferred_tf', tf);
+  // Keep both dropdowns in sync
+  ['tf-select', 'tf-select-st'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel && sel.value !== tf) sel.value = tf;
+  });
+  _saveTFToServer(tf);
+}
+
+async function _saveTFToServer(tf) {
+  try {
+    await fetch('/api/preferences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timeframe: tf }),
+    });
+  } catch (_) {}  // silent - localStorage is the primary store
+}
+
+async function _loadTFFromServer() {
+  try {
+    const r = await fetch('/api/preferences');
+    if (r.ok) {
+      const d = await r.json();
+      if (d.timeframe && d.timeframe !== _selectedTF) {
+        onTFChange(d.timeframe);
+      }
+    }
+  } catch (_) {}
+}
 
 const ALL_TZ = (() => {
   try { return Intl.supportedValuesOf('timeZone'); }
@@ -246,6 +289,97 @@ function dSentimentLabel(label) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   NEW INDICATOR — TOOLTIP DESCRIPTIONS
+═══════════════════════════════════════════════════════════════════════════ */
+
+function dSession(quality, note, sessions) {
+  const qualMap = {
+    excellent: 'Best time to trade. London and New York are both open. This overlap has the highest trading volume and tightest spreads — signals are most reliable here.',
+    good:      'Good time to trade. A major session (London or New York) is active with high liquidity.',
+    moderate:  'Moderate liquidity. Asian session has lower volume. Signals can be valid but spreads may be wider.',
+    low:       'Off-peak hours. Very low volume and wide spreads. Avoid new positions unless you have a strong reason.',
+    closed:    'Market is closed (weekend). No new positions recommended.',
+  };
+  const active = (sessions || []).join(', ') || 'None';
+  return `<strong>Active sessions: ${active}</strong><br>${qualMap[quality] || note}<small>Best: London/NY overlap (13:00-17:00 UTC) | Avoid: Off-hours and weekends</small>`;
+}
+
+function dStochRSI(k, d) {
+  let state, note;
+  if      (k > 80) { state = 'Overbought'; note = 'Stoch RSI above 80 means the RSI itself is at an extreme high. A pullback in price is likely soon.'; }
+  else if (k < 20) { state = 'Oversold';   note = 'Stoch RSI below 20 means the RSI itself is at an extreme low. A bounce in price is likely soon.'; }
+  else if (k > d)  { state = 'Rising';     note = 'Stoch RSI K-line above D-line signals momentum is building upward.'; }
+  else             { state = 'Falling';    note = 'Stoch RSI K-line below D-line signals momentum is turning downward.'; }
+  return `Stochastic RSI is <strong>${k} / ${d}</strong> (K / D) - State: <strong>${state}</strong><br>${note}<br>Stoch RSI is more sensitive than standard RSI and gives earlier signals of reversals.<small>0-20 = Oversold | 80-100 = Overbought | K crossing above D = bullish signal</small>`;
+}
+
+function dWeeklyTrend(dir) {
+  const map = {
+    up:      'Weekly trend is <strong>UP</strong>. Price is above its 50-week moving average. This is the big-picture context - only take BUY trades that align with the weekly uptrend.',
+    down:    'Weekly trend is <strong>DOWN</strong>. Price is below its 50-week moving average. Only take SELL trades that align with the weekly downtrend.',
+    neutral: 'Weekly trend is <strong>NEUTRAL</strong>. Price is near the 50-week moving average, meaning no strong multi-week directional bias.',
+  };
+  return (map[dir] || map.neutral) + `<br><small>Weekly trend acts as a filter: trading against the weekly trend has lower win rate</small>`;
+}
+
+function dOBV(signal, divergence, volRatio) {
+  const divMap = {
+    bullish: '<strong>Bullish OBV divergence:</strong> OBV is rising while price is falling. This means smart money (institutions) is quietly buying. This is one of the strongest early reversal signals.',
+    bearish: '<strong>Bearish OBV divergence:</strong> OBV is falling while price is rising. Institutions may be quietly selling into the rally. Caution advised.',
+    none:    'No OBV divergence. Volume is confirming the current price direction.',
+  };
+  const vol = volRatio ? `Current volume is <strong>${volRatio}x</strong> the 20-period average.` : '';
+  return `OBV (On-Balance Volume) tracks whether <strong>volume is flowing into or out of an asset</strong>.<br>${divMap[divergence] || divMap.none}<br>${vol}<small>OBV rising = more buying pressure | OBV falling = more selling pressure | Divergence = early warning sign</small>`;
+}
+
+function dIchimokuCloud(pos, tk, tenkan, kijun) {
+  const posMap = {
+    above:   'Price is <strong>ABOVE the cloud</strong> - this is a strong bullish signal. The cloud acts as support below.',
+    below:   'Price is <strong>BELOW the cloud</strong> - this is a strong bearish signal. The cloud acts as resistance above.',
+    inside:  'Price is <strong>INSIDE the cloud</strong> - the market is in consolidation. Wait for a clean break above or below the cloud before trading.',
+    unknown: 'Cloud position could not be determined.',
+  };
+  const tkMap = {
+    bullish: 'Tenkan-sen is above Kijun-sen - short-term momentum is bullish.',
+    bearish: 'Tenkan-sen is below Kijun-sen - short-term momentum is bearish.',
+    neutral: 'Tenkan and Kijun are equal - no directional momentum.',
+  };
+  return `<strong>Ichimoku Kinko Hyo</strong> is a complete trading system in one indicator.<br>${posMap[pos] || ''}<br>${tkMap[tk] || ''}<br><small>Tenkan = 9-period midpoint | Kijun = 26-period midpoint | Cloud = projected 26 bars forward</small>`;
+}
+
+function dPatternItem(name, description, reliability, strength) {
+  const relMap = {
+    high:     'High reliability - this pattern has a strong historical track record. Combine with volume confirmation for best results.',
+    moderate: 'Moderate reliability - valid signal but confirm with at least one other indicator before acting.',
+    low:      'Lower reliability on its own. Use as a supporting signal, not the primary reason to trade.',
+  };
+  const stars = '★'.repeat(strength) + '☆'.repeat(3 - strength);
+  return `<strong>${name}</strong> (${stars})<br>${description}<br>${relMap[reliability] || ''}<small>Reliability: ${reliability} | Strength: ${strength}/3</small>`;
+}
+
+function dDXY(direction, changePct) {
+  const dirMap = {
+    strengthening: `<strong>Dollar is strengthening</strong> (${changePct > 0 ? '+' : ''}${changePct}%). A stronger USD puts downward pressure on pairs where USD is the quote currency (EUR/USD, GBP/USD, AUD/USD). For USD/JPY and USD/CAD, a stronger dollar means the price rises.`,
+    weakening:     `<strong>Dollar is weakening</strong> (${changePct > 0 ? '+' : ''}${changePct}%). A weaker USD is bullish for EUR/USD, GBP/USD, AUD/USD. For USD/JPY and USD/CAD, a weaker dollar means the price falls.`,
+    neutral:       `<strong>Dollar is neutral</strong> (${changePct > 0 ? '+' : ''}${changePct}%). No strong directional bias from USD movements.`,
+  };
+  return (dirMap[direction] || dirMap.neutral) + `<br><small>DXY = US Dollar Index measuring USD vs a basket of 6 major currencies</small>`;
+}
+
+function dRetailSent(longPct, shortPct, signal) {
+  const sigMap = {
+    bearish: `<strong>${longPct}% of retail traders are LONG</strong>. Since retail traders are usually wrong at extremes, this is a <strong>contrarian BEARISH signal</strong>. When the crowd leans one way too heavily, the move often goes the other way.`,
+    bullish: `<strong>${shortPct}% of retail traders are SHORT</strong>. Since retail traders are usually wrong at extremes, this is a <strong>contrarian BULLISH signal</strong>. Fade the crowd.`,
+    neutral: `Retail positioning is mixed (${longPct}% long / ${shortPct}% short). No strong contrarian signal at this time.`,
+  };
+  return (sigMap[signal] || sigMap.neutral) + `<br><small>Contrarian rule: When >70% retail is on one side, consider the opposite direction</small>`;
+}
+
+function dCorrPair(symbol, changePct, dir) {
+  return `<strong>${symbol}</strong> has moved <strong>${changePct > 0 ? '+' : ''}${changePct}%</strong> over the last 3 days.<br>Correlated pairs moving in the same direction as your analysis confirm the signal. Divergence between correlated pairs suggests uncertainty.<small>Confirmation: 2+ correlated pairs agree = stronger signal</small>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    TRADE GUIDANCE — TOOLTIP DESCRIPTIONS
 ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -331,15 +465,16 @@ function _distStr(from, to, asset) {
 function calcTradeGuide(d) {
   const price  = parseFloat(d.last_price);
   const daily  = d.timeframes.daily;
-  const hourly = d.timeframes.hourly;
   const bias   = d.bias;
   const score  = d.score;
   const asset  = d.asset;
-  const atr    = price * (daily.volatility_atr_pct / 100);
-  const buf    = Math.max(atr * 0.28, price * 0.0003);
 
-  /* Probability: bias direction always gets >= 50%, score strength pushes it toward 100%.
-     Formula: biasDir% = 50 + score/2  (score=0 → 50/50, score=100 → 100/0) */
+  /* Probability: score drives confidence — but divergence signals temper it.
+     A bearish-looking score still gets a minimum of 50% when divergence is bullish. */
+  const divergeD = (daily.divergence || 'none');
+  const divergeH = (d.timeframes.hourly.divergence || 'none');
+  const hasDivergence = divergeD !== 'none' || divergeH !== 'none';
+
   const biasDirProb = 50 + Math.round(score / 2);
   const oppDirProb  = 100 - biasDirProb;
   let upProb, downProb;
@@ -347,39 +482,61 @@ function calcTradeGuide(d) {
   else if (bias === 'down') { downProb = biasDirProb; upProb = oppDirProb; }
   else                      { upProb = 50; downProb = 50; }
 
-  const conf = score >= 70 ? 'Strong' : score >= 50 ? 'Moderate' : score >= 35 ? 'Weak' : 'Very Weak';
+  const conf    = score >= 70 ? 'Strong' : score >= 50 ? 'Moderate' : score >= 35 ? 'Weak' : 'Very Weak';
   const confCls = conf.toLowerCase().replace(' ', '-');
-  const advice = score >= 70 ? 'Strong alignment. Standard position size applies.'
-               : score >= 50 ? 'Moderate alignment. Consider a smaller position.'
-               : score >= 35 ? 'Weak signal. Paper trade or wait for better setup.'
-               :               'Conflicting signals. No trade recommended now.';
+  const advice  = (d.trade_levels && d.trade_levels.size_hint)
+                    ? d.trade_levels.size_hint
+                    : (score >= 70 ? 'Strong alignment. Standard position size applies.'
+                     : score >= 50 ? 'Moderate alignment. Consider a smaller position.'
+                     : score >= 35 ? 'Weak signal. Paper trade or wait for better setup.'
+                     :               'Conflicting signals. No trade recommended now.');
 
   if (bias !== 'up' && bias !== 'down') {
-    return { signal: 'neutral', price, upProb, downProb, conf, confCls, advice, score };
+    return { signal: 'neutral', price, upProb, downProb, conf, confCls, advice, score, hasDivergence };
   }
 
-  let sl, tp1, tp2;
-  if (bias === 'up') {
-    sl  = parseFloat(hourly.support)    - buf;
-    tp1 = parseFloat(hourly.resistance);
-    tp2 = parseFloat(daily.resistance);
-    if (sl  >= price) sl  = price - atr * 1.5;
-    if (tp1 <= price) tp1 = price + atr * 2.0;
-    if (tp2 <= tp1)   tp2 = tp1   + atr * 2.0;
+  let sl, tp1, tp2, rr1, rr2;
+
+  /* ── Use backend-calculated levels when available (preferred) ── */
+  const tl = d.trade_levels;
+  if (tl && tl.sl && tl.tp1 && tl.tp2) {
+    sl  = tl.sl;
+    tp1 = tl.tp1;
+    tp2 = tl.tp2;
+    rr1 = tl.rr1;
+    rr2 = tl.rr2;
   } else {
-    sl  = parseFloat(hourly.resistance) + buf;
-    tp1 = parseFloat(hourly.support);
-    tp2 = parseFloat(daily.support);
-    if (sl  <= price) sl  = price + atr * 1.5;
-    if (tp1 >= price) tp1 = price - atr * 2.0;
-    if (tp2 >= tp1)   tp2 = tp1   - atr * 2.0;
+    /* ── JS fallback (no backend levels) ── */
+    const hourly = d.timeframes.hourly;
+    const atr    = price * (daily.volatility_atr_pct / 100);
+    const buf    = Math.max(atr * 1.0, price * 0.001);  // 1x ATR buffer
+
+    if (bias === 'up') {
+      sl  = parseFloat(daily.support)    - buf;
+      tp1 = parseFloat(hourly.resistance);
+      tp2 = parseFloat(daily.resistance);
+      if (sl  >= price) sl  = price - atr * 2.0;
+      if (tp1 <= price || (tp1 - price) < Math.abs(price - sl) * 1.5)
+        tp1 = price + Math.abs(price - sl) * 1.8;
+      if (tp2 <= tp1   || (tp2 - price) < Math.abs(price - sl) * 2.5)
+        tp2 = tp1 + Math.abs(price - sl) * 1.2;
+    } else {
+      sl  = parseFloat(daily.resistance) + buf;
+      tp1 = parseFloat(hourly.support);
+      tp2 = parseFloat(daily.support);
+      if (sl  <= price) sl  = price + atr * 2.0;
+      if (tp1 >= price || (price - tp1) < Math.abs(price - sl) * 1.5)
+        tp1 = price - Math.abs(price - sl) * 1.8;
+      if (tp2 >= tp1   || (price - tp2) < Math.abs(price - sl) * 2.5)
+        tp2 = tp1 - Math.abs(price - sl) * 1.2;
+    }
+    const risk = Math.abs(price - sl);
+    rr1 = risk > 0 ? Math.abs(tp1 - price) / risk : 0;
+    rr2 = risk > 0 ? Math.abs(tp2 - price) / risk : 0;
   }
 
-  const risk    = Math.abs(price - sl);
-  const rr1     = risk > 0 ? Math.abs(tp1 - price) / risk : 0;
-  const rr2     = risk > 0 ? Math.abs(tp2 - price) / risk : 0;
-
-  return { signal: bias, price, sl, tp1, tp2, rr1, rr2, upProb, downProb, conf, confCls, advice, score, asset };
+  return { signal: bias, price, sl, tp1, tp2, rr1, rr2,
+           upProb, downProb, conf, confCls, advice, score, asset, hasDivergence };
 }
 
 function renderTradeGuide(d) {
@@ -415,6 +572,22 @@ function renderTradeGuide(d) {
     return;
   }
 
+  /* Divergence warning banner — shown when RSI divergence detected */
+  const daily  = d.timeframes.daily;
+  const hourly = d.timeframes.hourly;
+  const divD = daily.divergence  || 'none';
+  const divH = hourly.divergence || 'none';
+  let divBanner = '';
+  if (divD !== 'none' || divH !== 'none') {
+    const dir  = (divD !== 'none' ? divD : divH);
+    const tf   = (divD !== 'none' ? 'Daily' : 'Hourly');
+    const icon = dir === 'bullish' ? '↑' : '↓';
+    const col  = dir === 'bullish' ? 'var(--up)' : 'var(--down)';
+    divBanner  = `<div style="margin-bottom:0.75rem;padding:0.55rem 0.85rem;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:7px;font-size:0.82rem;color:var(--amber);">
+      <strong>${icon} ${tf} RSI Divergence (${dir}):</strong> Price action conflicts with RSI momentum. This is a mean-reversion warning. The current directional signal may be near exhaustion.
+    </div>`;
+  }
+
   /* Level rows with individual tooltips */
   const fp     = v => _fmtPrice(v, g.asset);
   const ds     = (a, b) => _distStr(a, b, g.asset);
@@ -447,7 +620,18 @@ function renderTradeGuide(d) {
     ];
   }
 
-  el('tg-levels').innerHTML = `
+  const tl = d.trade_levels;
+  let regimeNote = '';
+  if (tl) {
+    const slDesc  = tl.sl_description || `SL anchored to structural S/R (${tl.regime} regime)`;
+    const kijunPart = tl.kijun_ref ? ` | Kijun: ${tl.kijun_ref}` : '';
+    const atrPart   = tl.atr ? ` | ATR: ${_fmtPrice(tl.atr, g.asset)}` : '';
+    regimeNote = `<div style="margin-top:0.6rem;padding:0.45rem 0.75rem;background:rgba(255,255,255,0.03);border-radius:6px;font-size:0.79rem;color:var(--muted);line-height:1.5">
+      ${_esc(slDesc)}${kijunPart}${atrPart}
+    </div>`;
+  }
+
+  el('tg-levels').innerHTML = divBanner + `
     <table class="tg-table">
       <thead><tr><th>Level</th><th>Price</th><th>Distance</th><th>Risk/Reward</th></tr></thead>
       <tbody>${rows.map(r =>
@@ -458,7 +642,7 @@ function renderTradeGuide(d) {
           <td>${r.extra}</td>
         </tr>`).join('')}
       </tbody>
-    </table>`;
+    </table>` + regimeNote;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -468,6 +652,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const tab = new URLSearchParams(window.location.search).get('tab');
   switchTab(tab === 'stock' ? 'stock' : 'forex');
   buildTZSelector();
+  initTimeframes();
+  _loadTFFromServer();   // sync preference from DB (non-blocking)
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -501,13 +687,13 @@ async function analyzeForex() {
   const base  = el('fx-base').value;
   const quote = el('fx-quote').value;
   if (base === quote) { showError('Base and quote currency must be different.'); return; }
-  await runAnalysis({ asset_type: 'forex', symbol: base, quote }, 'fx');
+  await runAnalysis({ asset_type: 'forex', symbol: base, quote, timeframe: _selectedTF }, 'fx');
 }
 
 async function analyzeStock() {
   const sym = (el('stock-symbol-hidden')?.value || el('stock-search-input')?.value || '').trim().toUpperCase();
   if (!sym) { showError('Please search and select a company, or type a ticker symbol.'); return; }
-  await runAnalysis({ asset_type: 'stock', symbol: sym }, 'st');
+  await runAnalysis({ asset_type: 'stock', symbol: sym, timeframe: _selectedTF }, 'st');
 }
 
 async function runAnalysis(payload, prefix) {
@@ -550,7 +736,33 @@ function renderResults(d) {
   /* ── Header card ────────────────────────────────────────────────────── */
   el('r-asset').textContent = d.asset;
   el('r-price').textContent = `Price: ${d.last_price}`;
-  el('r-meta').textContent  = `${d.asset_type.toUpperCase()} · Generated ${fmtTime(d.generated_at_utc)}`;
+  const tfLabel = d.timeframe_label || 'Daily';
+  const tfDesc  = d.timeframe_desc  || 'Swing trading (days to weeks)';
+  let metaText  = `${d.asset_type.toUpperCase()} · ${tfLabel} · Generated ${fmtTime(d.generated_at_utc)}`;
+  if (d.is_inverted_pair && d.inverted_from) metaText += ` · Normalised from ${d.inverted_from}`;
+  el('r-meta').textContent = metaText;
+  const ttEl = el('tg-trade-type');
+  if (ttEl) ttEl.textContent = `${tfLabel} - ${tfDesc}`;
+
+  // Inversion banner
+  let invBanner = el('inverted-pair-banner');
+  if (d.is_inverted_pair && d.inverted_from) {
+    if (!invBanner) {
+      invBanner = document.createElement('div');
+      invBanner.id = 'inverted-pair-banner';
+      invBanner.style.cssText = [
+        'background:rgba(245,158,11,0.1)', 'border:1px solid rgba(245,158,11,0.3)',
+        'border-radius:8px', 'padding:0.5rem 1rem', 'font-size:0.82rem',
+        'color:var(--amber)', 'margin-bottom:0.75rem',
+      ].join(';');
+      const ksCard = el('key-signal-card');
+      if (ksCard) ksCard.parentNode.insertBefore(invBanner, ksCard);
+    }
+    invBanner.innerHTML = `<strong>Non-standard pair:</strong> Analysed as <strong>${_esc(d.inverted_from)}</strong> (market convention) with all signals inverted to match your requested <strong>${_esc(d.asset)}</strong> notation.`;
+    invBanner.style.display = '';
+  } else if (invBanner) {
+    invBanner.style.display = 'none';
+  }
 
   const biasEl = el('r-bias-badge');
   biasEl.textContent = biasTxt(d.bias);
@@ -567,15 +779,33 @@ function renderResults(d) {
   setVal('qs-hrsi',  hourly.rsi,                                           rsiClass(hourly.rsi));
   setVal('qs-dtrend',trendTxt(daily.trend),                                daily.trend);
   setVal('qs-dmacd', daily.macd_above_signal ? '↑ Bullish' : '↓ Bearish', daily.macd_above_signal ? 'up' : 'down');
+
+  // Stoch RSI
+  const stochK = daily.stoch_rsi_k;
+  const stochD = daily.stoch_rsi_d;
+  const stochTxt = (stochK != null && stochD != null) ? `${stochK} / ${stochD}` : '-';
+  const stochCls = stochK > 80 ? 'down' : stochK < 20 ? 'up' : 'neutral';
+  setVal('qs-stochrsi', stochTxt, stochCls);
+
+  // Weekly trend
+  const weekly = d.weekly;
+  if (weekly) {
+    setVal('qs-weekly', weekly.direction === 'up' ? '↑ Uptrend' : weekly.direction === 'down' ? '↓ Downtrend' : '→ Neutral', weekly.direction || 'neutral');
+  } else {
+    setVal('qs-weekly', '-', 'neutral');
+  }
+
   setVal('qs-atr',   `${daily.volatility_atr_pct}%`,                      'neutral');
   setVal('qs-sent',  capFirst(d.sentiment?.label || 'neutral'),            d.sentiment?.label || 'neutral');
 
-  rowTip('qs-drsi',   'Daily RSI (14)',   dRSI(daily.rsi,   'Daily'));
-  rowTip('qs-hrsi',   'Hourly RSI (14)',  dRSI(hourly.rsi,  'Hourly'));
-  rowTip('qs-dtrend', 'Daily Trend',      dTrend(daily.trend, 'Daily'));
-  rowTip('qs-dmacd',  'Daily MACD',       dMACD(daily.macd_above_signal, 'Daily'));
-  rowTip('qs-atr',    'Volatility ATR%',  dATR(daily.volatility_atr_pct, 'Daily'));
-  rowTip('qs-sent',   'News Sentiment',   dSentLabel(d.sentiment?.label, d.sentiment?.score ?? 0));
+  rowTip('qs-drsi',     'Daily RSI (14)',        dRSI(daily.rsi,   'Daily'));
+  rowTip('qs-hrsi',     'Hourly RSI (14)',       dRSI(hourly.rsi,  'Hourly'));
+  rowTip('qs-dtrend',   'Daily Trend',           dTrend(daily.trend, 'Daily'));
+  rowTip('qs-dmacd',    'Daily MACD',            dMACD(daily.macd_above_signal, 'Daily'));
+  rowTip('qs-stochrsi', 'Stochastic RSI',        dStochRSI(stochK ?? 50, stochD ?? 50));
+  rowTip('qs-weekly',   'Weekly Timeframe Bias', dWeeklyTrend(weekly?.direction || 'neutral'));
+  rowTip('qs-atr',      'Volatility ATR%',       dATR(daily.volatility_atr_pct, 'Daily'));
+  rowTip('qs-sent',     'News Sentiment',        dSentLabel(d.sentiment?.label, d.sentiment?.score ?? 0));
 
   /* ── AI Summary ─────────────────────────────────────────────────────── */
   el('ai-summary-text').textContent   = d.ai_summary?.text || 'No summary available.';
@@ -658,6 +888,11 @@ function renderResults(d) {
   renderHeadlines(d);
   renderCOT(d);
   renderVolatilityRegime(d);
+  renderSession(d);
+  renderVolumeAnalysis(d);
+  renderIchimoku(d);
+  renderCorrelation(d);
+  renderPatterns(d);
 
   /* ── Stock-specific renders ─────────────────────────────────────────────── */
   if (isStock) {
@@ -854,7 +1089,50 @@ function renderBreakdown(b, assetType) {
                 `${b.event_clarity.high_impact} high-impact economic events are upcoming. Each reduces this score because major news can instantly override all technical signals.`),
       },
     ];
+
+    // ── Ichimoku and Volume (forex + stock both) ──
+    const ichi = b.ichimoku             || {};
+    const vol  = b.volume_confirmation  || {};
+
+    if (ichi.max > 0) {
+      items.push({
+        name: 'Ichimoku\nCloud',
+        pts:  ichi.points || 0, max: ichi.max, dir: ichi.direction || 'neutral',
+        note: ichi.available ? (ichi.cloud_position || 'unknown') : 'No Data',
+        tip:  dScoreCard('Ichimoku Cloud', ichi.points || 0, ichi.max, ichi.direction || 'neutral',
+                ichi.available
+                  ? `Cloud position: ${ichi.cloud_position || 'unknown'} | TK cross: ${ichi.tk_cross || 'neutral'}. Full ${ichi.max} pts when price is above/below cloud with TK cross confirmation.`
+                  : 'Ichimoku data not available for this timeframe.'),
+      });
+    }
+
+    if (vol.available !== false) {
+      items.push({
+        name: 'Volume\nConfirm.',
+        pts:  vol.points || 0, max: vol.max || 5, dir: vol.signal || 'neutral',
+        note: vol.available
+          ? (vol.divergence !== 'none' ? `${vol.divergence} div.` : `${vol.vol_ratio || '-'}x avg`)
+          : 'No Data',
+        tip:  dScoreCard('Volume Confirmation', vol.points || 0, vol.max || 5, vol.signal || 'neutral',
+                vol.available
+                  ? `OBV signal: ${vol.signal} | Volume vs 20-avg: ${vol.vol_ratio || '-'}x | Divergence: ${vol.divergence || 'none'}. Adds up to ${vol.max || 5} pts when volume confirms the directional bias.`
+                  : 'Volume data not available (no volume column in OHLCV data).'),
+      });
+    }
   }
+
+  const totalRaw    = items.reduce((s, i) => s + (i.pts || 0), 0);
+  const maxPossible = items.reduce((s, i) => s + (i.max || 0), 0);
+  const calcScore   = maxPossible > 0 ? Math.round(totalRaw / maxPossible * 100) : 0;
+
+  const scoreTipId = mkTip('Score Formula',
+    `<strong>Alignment Score = Sum of raw points / Maximum possible points × 100</strong><br>` +
+    `Raw earned: <strong>${totalRaw.toFixed(1)}</strong> pts<br>` +
+    `Max possible: <strong>${maxPossible}</strong> pts<br>` +
+    `Formula: ${totalRaw.toFixed(1)} / ${maxPossible} × 100 = <strong>${calcScore}</strong><br><br>` +
+    `Each component contributes proportionally — no arbitrary penalties or conflict deductions.<br>` +
+    `<small>Note: The displayed score may differ by ±1 due to rounding</small>`
+  );
 
   el('breakdown-grid').innerHTML = items.map(item => {
     const id  = mkTip(item.name.replace('\n', ' '), item.tip);
@@ -867,7 +1145,11 @@ function renderBreakdown(b, assetType) {
       <div class="bd-max">/ ${item.max} pts</div>
       <div class="bd-dir ${item.dir}">${label}</div>
     </div>`;
-  }).join('');
+  }).join('') +
+  `<div class="bd-formula" data-tip="${scoreTipId}">
+    <span class="bd-formula-label">Score Formula</span>
+    <span class="bd-formula-calc">${totalRaw.toFixed(1)} / ${maxPossible} pts = <strong>${calcScore}</strong></span>
+  </div>`;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -919,6 +1201,7 @@ function capFirst(s)   { return s ? s.charAt(0).toUpperCase() + s.slice(1) : 'N/
 function biasTxt(bias) { return bias === 'up' ? '↑ BULLISH' : bias === 'down' ? '↓ BEARISH' : '→ UNCLEAR'; }
 function trendTxt(t)   { return t === 'up' ? '↑ Up' : t === 'down' ? '↓ Down' : '→ Neutral'; }
 function rsiClass(v)   { return v > 70 ? 'down' : v < 30 ? 'up' : 'neutral'; }
+function _esc(s)       { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 function setVal(id, text, cls) {
   const e = el(id);
@@ -1799,4 +2082,247 @@ function renderOptionsSentiment(d) {
   const optSrc = opt.source ? ` <span style="font-size:0.7rem;color:var(--muted);font-weight:400">via ${opt.source}</span>` : '';
   el('options-sent-card').querySelector('.card-title').innerHTML = `⚙ Options Sentiment (Put/Call Ratio)${optSrc}`;
   setTip(el('options-sent-card'), 'Options Sentiment', dOptionsSentiment(opt.ratio, signal, opt.call_oi, opt.put_oi));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SESSION BAR
+═══════════════════════════════════════════════════════════════════════════ */
+function renderSession(d) {
+  const bar = el('session-bar');
+  if (!bar) return;
+  const sess = d.session || (d.timeframes && d.timeframes.daily && d.timeframes.daily.session);
+  if (!sess) { bar.style.display = 'none'; return; }
+
+  bar.style.display = '';
+  const dot   = el('session-dot');
+  const label = el('session-label');
+  const pairs = el('session-pairs');
+
+  const qualColors = {
+    excellent: 'var(--up)',
+    good:      'var(--up)',
+    moderate:  'var(--amber)',
+    low:       'var(--muted)',
+    closed:    'var(--down)',
+  };
+
+  if (dot) { dot.style.background = qualColors[sess.quality] || 'var(--muted)'; }
+  if (label) label.textContent = `${(sess.sessions || []).join(' + ')} Session - ${sess.note}`;
+  if (pairs && d.asset_type === 'forex') {
+    pairs.textContent = sess.best_time ? 'Good time to trade' : 'Consider waiting for better session';
+    pairs.style.color = sess.best_time ? 'var(--up)' : 'var(--amber)';
+  }
+  setTip(bar, 'Trading Session', dSession(sess.quality, sess.note, sess.sessions));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VOLUME ANALYSIS CARD
+═══════════════════════════════════════════════════════════════════════════ */
+function renderVolumeAnalysis(d) {
+  const card = el('volume-card');
+  if (!card) return;
+  const vol = d.timeframes && d.timeframes.daily && d.timeframes.daily.volume;
+  if (!vol || !vol.available) { card.style.display = 'none'; return; }
+
+  card.style.display = 'block';
+  const badge = el('vol-badge');
+  const main  = el('vol-main');
+
+  const sigMap = {
+    bullish: ['up',      'Confirmed Bullish'],
+    bearish: ['down',    'Confirmed Bearish'],
+    neutral: ['neutral', 'Neutral'],
+  };
+  const [cls, txt] = sigMap[vol.signal] || ['neutral', 'Neutral'];
+  if (badge) { badge.textContent = txt; badge.className = `dir-badge ${cls}`; }
+
+  if (main) {
+    const divTxt = vol.divergence !== 'none'
+      ? `OBV ${vol.divergence} divergence detected - smart money may be ${vol.divergence === 'bullish' ? 'accumulating' : 'distributing'}`
+      : `OBV ${vol.direction === 'up' ? 'rising' : 'falling'} - ${vol.high_volume ? 'above' : 'below'} average volume`;
+    main.textContent = divTxt;
+  }
+
+  const setQ = (id, txt2, cls2) => { const e = el(id); if (e) { e.textContent = txt2; e.className = `qs-val ${cls2 || ''}`; } };
+  setQ('vol-obv-dir',   vol.direction === 'up' ? 'Rising (Accumulation)' : 'Falling (Distribution)', vol.direction === 'up' ? 'up' : 'down');
+  setQ('vol-ratio',     `${vol.vol_ratio}x average`, vol.high_volume ? 'up' : 'neutral');
+  setQ('vol-divergence', vol.divergence !== 'none' ? `${vol.divergence.charAt(0).toUpperCase() + vol.divergence.slice(1)} Divergence` : 'None', vol.divergence !== 'none' ? 'amber' : 'neutral');
+
+  // Tooltips
+  const tip = dOBV(vol.signal, vol.divergence, vol.vol_ratio);
+  setTip(card,                        'Volume Analysis (OBV)', tip);
+  setTip(el('vol-obv-dir')?.closest('tr'), 'OBV Direction', `OBV (On-Balance Volume) is currently <strong>${vol.direction === 'up' ? 'rising' : 'falling'}</strong>.<br>Rising OBV means more volume is flowing in on up-days than down-days - accumulation signal.<small>OBV = cumulative volume: +volume on up days, -volume on down days</small>`);
+  setTip(el('vol-ratio')?.closest('tr'),   'Volume vs Average', `Current volume is <strong>${vol.vol_ratio}x</strong> the 20-period average.<br>${vol.high_volume ? 'Above-average volume confirms the move is significant.' : 'Below-average volume means the move may lack conviction.'}<small>Volume 1.3x+ average = high conviction | Below 0.8x = weak move</small>`);
+  setTip(el('vol-divergence')?.closest('tr'), 'OBV Divergence', dOBV(vol.signal, vol.divergence, vol.vol_ratio));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ICHIMOKU CLOUD CARD
+═══════════════════════════════════════════════════════════════════════════ */
+function renderIchimoku(d) {
+  const card = el('ichimoku-card');
+  if (!card) return;
+  const ichi = d.timeframes && d.timeframes.daily && d.timeframes.daily.ichimoku;
+  if (!ichi || !ichi.available) { card.style.display = 'none'; return; }
+
+  card.style.display = 'block';
+  const badge  = el('ichi-badge');
+  const posEl  = el('ichi-cloud-pos');
+  const tkEl   = el('ichi-tk');
+  const tenEl  = el('ichi-tenkan');
+  const kijEl  = el('ichi-kijun');
+  const barEl  = el('ichi-cloud-bar');
+
+  const posMap = {
+    above:   ['up',      'Above Cloud (Bullish)'],
+    below:   ['down',    'Below Cloud (Bearish)'],
+    inside:  ['neutral', 'Inside Cloud (Neutral)'],
+    unknown: ['neutral', 'Unknown'],
+  };
+  const [cls, txt] = posMap[ichi.cloud_position] || ['neutral', 'Unknown'];
+
+  if (badge) { badge.textContent = txt; badge.className = `dir-badge ${cls}`; }
+  if (posEl) { posEl.textContent = txt; posEl.className = `qs-val ${cls}`; }
+  if (tkEl)  {
+    const tkLabel = ichi.tk_cross ? ichi.tk_cross.charAt(0).toUpperCase() + ichi.tk_cross.slice(1) : '-';
+    tkEl.textContent = tkLabel;
+    tkEl.className   = `qs-val ${ichi.tk_cross === 'bullish' ? 'up' : ichi.tk_cross === 'bearish' ? 'down' : 'neutral'}`;
+  }
+  if (tenEl) tenEl.textContent = ichi.tenkan ? ichi.tenkan.toFixed(5) : '-';
+  if (kijEl) kijEl.textContent = ichi.kijun  ? ichi.kijun.toFixed(5)  : '-';
+
+  if (barEl) {
+    const cloudColor = ichi.cloud_bullish ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)';
+    barEl.style.cssText = `height:8px;border-radius:4px;margin-bottom:0.75rem;background:${cloudColor};border:1px solid ${ichi.cloud_bullish ? 'var(--up)' : 'var(--down)'};`;
+  }
+
+  // Tooltips
+  const ichiTip = dIchimokuCloud(ichi.cloud_position, ichi.tk_cross, ichi.tenkan, ichi.kijun);
+  setTip(card,                          'Ichimoku Cloud', ichiTip);
+  setTip(posEl?.closest('tr'),          'Cloud Position', `Price is <strong>${txt}</strong>.<br>${posMap[ichi.cloud_position]?.[0] === 'up' ? 'The cloud acts as support below.' : posMap[ichi.cloud_position]?.[0] === 'down' ? 'The cloud acts as resistance above.' : 'Wait for a breakout above or below before trading.'}<small>Above cloud = bullish | Below cloud = bearish | Inside cloud = neutral</small>`);
+  setTip(tkEl?.closest('tr'),           'Tenkan/Kijun Cross', `The TK cross compares the 9-period and 26-period midpoints.<br><strong>${ichi.tk_cross === 'bullish' ? 'Tenkan above Kijun = bullish momentum' : ichi.tk_cross === 'bearish' ? 'Tenkan below Kijun = bearish momentum' : 'Lines are equal = no directional momentum'}</strong><small>A TK cross in the direction of the cloud gives the strongest signal</small>`);
+  setTip(tenEl?.closest('tr'),          'Tenkan-sen (Conversion Line)', `Tenkan-sen is the <strong>9-period high+low midpoint</strong>.<br>Value: <strong>${ichi.tenkan?.toFixed(5) || '-'}</strong><br>Acts as short-term support/resistance and momentum indicator.<small>When price is above Tenkan = short-term bullish</small>`);
+  setTip(kijEl?.closest('tr'),          'Kijun-sen (Base Line)', `Kijun-sen is the <strong>26-period high+low midpoint</strong>.<br>Value: <strong>${ichi.kijun?.toFixed(5) || '-'}</strong><br>Acts as the primary stop-loss reference. Breaks of the Kijun signal momentum shifts.<small>Kijun is one of the most important levels in Ichimoku trading</small>`);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CORRELATION CARD (forex only)
+═══════════════════════════════════════════════════════════════════════════ */
+function renderCorrelation(d) {
+  const card = el('correlation-card');
+  if (!card) return;
+  if (d.asset_type !== 'forex') { card.style.display = 'none'; return; }
+
+  const corr = d.correlation;
+  card.style.display = '';
+
+  // DXY
+  if (corr && corr.dxy && corr.dxy.available) {
+    const dxy = corr.dxy;
+    const cls = dxy.direction === 'strengthening' ? 'down' : dxy.direction === 'weakening' ? 'up' : 'neutral';
+    const db  = el('dxy-badge');
+    if (db) { db.textContent = dxy.direction; db.className = `dir-badge ${cls}`; }
+    const dxyValEl = el('dxy-value');
+    if (dxyValEl) { dxyValEl.textContent = dxy.value; dxyValEl.className = `dxy-value ${cls}`; }
+    const setQ = (id, txt, c) => { const e = el(id); if (e) { e.textContent = txt; e.className = `qs-val ${c || ''}`; } };
+    setQ('dxy-val', dxy.value, 'neutral');
+    setQ('dxy-chg', `${dxy.change_pct > 0 ? '+' : ''}${dxy.change_pct}%`, dxy.change_pct > 0 ? 'down' : 'up');
+    setQ('dxy-dir', dxy.direction.charAt(0).toUpperCase() + dxy.direction.slice(1), cls);
+
+    // DXY tooltips
+    const dxyTip = dDXY(dxy.direction, dxy.change_pct);
+    if (db) setTip(db, 'Dollar Index (DXY)', dxyTip);
+    setTip(el('dxy-val')?.closest('tr'), 'DXY Value', `Current DXY value is <strong>${dxy.value}</strong>.<br>Higher DXY = stronger USD. Lower DXY = weaker USD.<small>DXY baseline is ~100. Above 100 = historically strong USD | Below 100 = weak USD</small>`);
+    setTip(el('dxy-chg')?.closest('tr'), 'DXY Daily Change', dxyTip);
+  } else {
+    const db = el('dxy-badge');
+    if (db) { db.textContent = 'No Data'; db.className = 'dir-badge neutral'; }
+  }
+
+  // Related pairs
+  const tbody = el('corr-pairs-body');
+  if (tbody && corr && corr.pairs && corr.pairs.length) {
+    tbody.innerHTML = corr.pairs.map(p => {
+      const tipId = mkTip(`${p.symbol} Correlation`, dCorrPair(p.symbol, p.change_pct, p.direction));
+      return `<tr data-tip="${tipId}">
+        <td><strong>${_esc(p.symbol)}</strong></td>
+        <td class="qs-val ${p.change_pct >= 0 ? 'up' : 'down'}">${p.change_pct >= 0 ? '+' : ''}${p.change_pct}%</td>
+        <td class="qs-val ${p.direction === 'up' ? 'up' : 'down'}">${p.direction === 'up' ? 'Up' : 'Down'}</td>
+      </tr>`;
+    }).join('');
+  } else if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--muted);text-align:center">No data</td></tr>';
+  }
+
+  // Retail sentiment
+  const rs    = d.retail_sentiment;
+  const rsRow = el('retail-sent-row');
+  if (rs && rs.available && rsRow) {
+    rsRow.style.display = 'block';
+    const rb = el('retail-badge');
+    if (rb) rb.style.display = '';
+    const setQ = (id, txt, c) => { const e = el(id); if (e) { e.textContent = txt; e.className = `qs-val ${c || ''}`; } };
+    setQ('retail-long',   `${rs.long_pct}% Long`,   rs.long_pct  > 60 ? 'amber' : 'neutral');
+    setQ('retail-short',  `${rs.short_pct}% Short`,  rs.short_pct > 60 ? 'amber' : 'neutral');
+    setQ('retail-signal', rs.signal.charAt(0).toUpperCase() + rs.signal.slice(1),
+         rs.signal === 'bullish' ? 'up' : rs.signal === 'bearish' ? 'down' : 'neutral');
+
+    // Retail sentiment tooltips
+    const rsTip = dRetailSent(rs.long_pct, rs.short_pct, rs.signal);
+    if (rsRow) setTip(rsRow, 'Retail Positioning (Contrarian)', rsTip);
+    setTip(el('retail-signal')?.closest('tr'), 'Contrarian Signal', rsTip);
+  }
+}
+
+/* ─── Pattern Analysis ────────────────────────────────────────────────────── */
+function renderPatterns(d) {
+  const card = el('patterns-card');
+  if (!card) return;
+
+  const pt = d.patterns;
+  if (!pt || !pt.available) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+
+  const badge   = el('patterns-badge');
+  const summary = el('patterns-summary');
+  const list    = el('patterns-list');
+
+  const biasCls = pt.bias === 'up' ? 'up' : pt.bias === 'down' ? 'down' : 'neutral';
+  const biasTxt = pt.bias === 'up' ? 'Bullish Pattern Bias' : pt.bias === 'down' ? 'Bearish Pattern Bias' : 'Neutral';
+  if (badge)   { badge.textContent = biasTxt; badge.className = `dir-badge ${biasCls}`; }
+
+  if (!pt.patterns || pt.patterns.length === 0) {
+    if (summary) summary.textContent = 'No recognisable patterns detected in current candles.';
+    if (list)    list.innerHTML = '';
+    return;
+  }
+
+  const strongest = pt.strongest;
+  if (summary) {
+    summary.textContent = strongest
+      ? `${strongest.name} detected - ${strongest.description}`
+      : `${pt.count} pattern(s) detected.`;
+  }
+
+  if (badge) setTip(badge, 'Pattern Bias', `<strong>${biasTxt}</strong><br>Combined vote from all detected patterns (weighted by strength).<br>Each pattern votes bullish/bearish/neutral, weighted by its strength (1-3).<small>Bias score: ${pt.bias_score?.toFixed(2) || '0'} | Pattern count: ${pt.count}</small>`);
+
+  if (list) {
+    const relColors = { high: 'var(--up)', moderate: 'var(--amber)', low: 'var(--muted)' };
+    list.innerHTML = pt.patterns.map(p => {
+      const cls    = p.direction === 'up' ? 'up' : p.direction === 'down' ? 'down' : 'neutral';
+      const tag    = p.type === 'chart' ? '📊' : '🕯';
+      const stars  = '★'.repeat(p.strength) + '☆'.repeat(3 - p.strength);
+      const relC   = relColors[p.reliability] || 'var(--muted)';
+      const tipId  = mkTip(p.name, dPatternItem(p.name, p.description, p.reliability, p.strength));
+      return `<div class="pattern-item" data-tip="${tipId}" style="cursor:help">
+        <div class="pattern-header">
+          <span class="pattern-tag">${tag}</span>
+          <span class="pattern-name ${cls}">${_esc(p.name)}</span>
+          <span class="pattern-stars" style="color:${relC}">${stars}</span>
+          <span class="pattern-dir dir-badge ${cls}" style="font-size:0.72rem;padding:0.2rem 0.5rem">${p.direction === 'up' ? 'Bullish' : p.direction === 'down' ? 'Bearish' : 'Neutral'}</span>
+        </div>
+        <div class="pattern-desc">${_esc(p.description)}</div>
+      </div>`;
+    }).join('');
+  }
 }
