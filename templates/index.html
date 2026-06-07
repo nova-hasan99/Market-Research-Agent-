@@ -130,13 +130,41 @@
         <span class="logo-icon">◈</span>
         <span class="logo-text">MarketLens</span>
       </div>
+      <button class="hamburger-btn" onclick="toggleMobileNav()">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
       <div class="nav-links">
         <a href="/research?tab=forex" class="nav-btn-ghost">Forex</a>
         <a href="/research?tab=stock" class="nav-btn-ghost">Stocks</a>
-        <a href="/research" class="nav-btn-primary">Launch App</a>
+        {% if user %}
+        <a href="/dashboard" class="nav-btn-ghost">Dashboard</a>
+        <a href="/logout" class="nav-btn-ghost">Logout</a>
+        {% else %}
+        <a href="/login" class="nav-btn-ghost">Login</a>
+        <a href="/register" class="nav-btn-primary">Register</a>
+        {% endif %}
+        <a href="/privacy" class="nav-btn-ghost" style="color:var(--muted)">Privacy</a>
       </div>
     </div>
   </nav>
+
+  <!-- Mobile Menu -->
+  <div class="nav-mobile" id="nav-mobile">
+    <div class="nav-mobile-links">
+      <a href="/research?tab=forex" onclick="closeMobileNav()">Forex Research</a>
+      <a href="/research?tab=stock" onclick="closeMobileNav()">Stock Research</a>
+      {% if user %}
+      <a href="/dashboard" onclick="closeMobileNav()">Dashboard</a>
+      <a href="/logout" onclick="closeMobileNav()">Logout</a>
+      {% else %}
+      <a href="/login" onclick="closeMobileNav()">Login</a>
+      <a href="/register" class="nav-btn-primary" onclick="closeMobileNav()">Register</a>
+      {% endif %}
+      <a href="/privacy" onclick="closeMobileNav()">Privacy Policy</a>
+    </div>
+  </div>
 
   <!-- Hero Section -->
   <section class="hero">
@@ -345,6 +373,34 @@
       <span class="footer-note">Research platform for educational purposes. Not financial advice.</span>
     </div>
   </footer>
+
+  <script>
+    /* Mobile menu toggle */
+    function toggleMobileNav() {
+      const btn = document.querySelector('.hamburger-btn');
+      const menu = document.getElementById('nav-mobile');
+      btn.classList.toggle('active');
+      menu.classList.toggle('active');
+      document.body.style.overflow = menu.classList.contains('active') ? 'hidden' : '';
+    }
+
+    function closeMobileNav() {
+      const btn = document.querySelector('.hamburger-btn');
+      const menu = document.getElementById('nav-mobile');
+      btn.classList.remove('active');
+      menu.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    // Close menu when clicking outside
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('nav-mobile');
+      const btn = document.querySelector('.hamburger-btn');
+      if (menu && menu.classList.contains('active') && !menu.contains(e.target) && !btn.contains(e.target)) {
+        closeMobileNav();
+      }
+    });
+  </script>
 
 </body>
 </html>

@@ -122,14 +122,30 @@
       <span class="logo-icon">◈</span>
       <span class="logo-text">MarketLens</span>
     </a>
+    <button class="hamburger-btn" onclick="toggleMobileNav()">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
     <div class="nav-links">
       <a href="/research"  class="nav-btn-ghost">Research</a>
       <a href="/dashboard" class="nav-btn-ghost">Dashboard</a>
       <a href="/admin/api-status" class="nav-btn-ghost" style="color:var(--blue)">API Status</a>
+      <a href="/admin/users" class="nav-btn-ghost" style="color:var(--amber)">⚙ Super Admin</a>
       <a href="/logout"    class="nav-btn-ghost">Logout</a>
     </div>
   </div>
 </nav>
+
+<!-- Mobile Menu -->
+<div class="nav-mobile" id="nav-mobile">
+  <div class="nav-mobile-links">
+    <a href="/research" onclick="closeMobileNav()">Research</a>
+    <a href="/dashboard" onclick="closeMobileNav()">Dashboard</a>
+    <a href="/admin/api-status" onclick="closeMobileNav()">API Status</a>
+    <a href="/logout" onclick="closeMobileNav()">Logout</a>
+  </div>
+</div>
 
 <main class="as-main">
 
@@ -279,5 +295,34 @@
   </div>
 
 </main>
+
+<script>
+  /* Mobile menu toggle */
+  function toggleMobileNav() {
+    const btn = document.querySelector('.hamburger-btn');
+    const menu = document.getElementById('nav-mobile');
+    btn.classList.toggle('active');
+    menu.classList.toggle('active');
+    document.body.style.overflow = menu.classList.contains('active') ? 'hidden' : '';
+  }
+
+  function closeMobileNav() {
+    const btn = document.querySelector('.hamburger-btn');
+    const menu = document.getElementById('nav-mobile');
+    btn.classList.remove('active');
+    menu.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  // Close menu when clicking outside
+  document.addEventListener('click', function(e) {
+    const menu = document.getElementById('nav-mobile');
+    const btn = document.querySelector('.hamburger-btn');
+    if (menu && menu.classList.contains('active') && !menu.contains(e.target) && !btn.contains(e.target)) {
+      closeMobileNav();
+    }
+  });
+</script>
+
 </body>
 </html>

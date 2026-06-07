@@ -1231,3 +1231,114 @@ tr[data-tip]:hover > td { background: rgba(59,130,246,0.08) !important; transiti
 @media (max-width: 640px) {
   .tf-note-grid { grid-template-columns: 1fr; }
 }
+
+/* ─── Hamburger Menu (Mobile) ────────────────────────────────────────────── */
+.hamburger-btn {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  z-index: 101;
+}
+
+.hamburger-btn span {
+  width: 24px;
+  height: 2.5px;
+  background: var(--text);
+  border-radius: 2px;
+  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+  display: block;
+}
+
+.hamburger-btn.active span:nth-child(1) {
+  transform: rotate(45deg) translate(8px, 8px);
+}
+
+.hamburger-btn.active span:nth-child(2) {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.hamburger-btn.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(7px, -7px);
+}
+
+/* Mobile Nav Menu */
+.nav-mobile {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(6, 11, 20, 0.98);
+  backdrop-filter: blur(12px);
+  z-index: 99;
+  flex-direction: column;
+  padding-top: 70px;
+  overflow-y: auto;
+  animation: slideInFromTop 0.3s ease-out;
+}
+
+.nav-mobile.active {
+  display: flex;
+}
+
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nav-mobile-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 1rem 0;
+}
+
+.nav-mobile-links a {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 500;
+  transition: background 0.2s, color 0.2s;
+  display: block;
+}
+
+.nav-mobile-links a:hover {
+  background: var(--card2);
+  color: var(--blue);
+}
+
+.nav-mobile-links .nav-btn-primary {
+  margin: 1rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  border: none;
+  text-align: center;
+  width: auto;
+}
+
+/* Show hamburger on mobile */
+@media (max-width: 768px) {
+  .hamburger-btn {
+    display: flex;
+  }
+
+  .nav-links {
+    display: none;
+  }
+
+  .nav-inner {
+    justify-content: space-between;
+  }
+}

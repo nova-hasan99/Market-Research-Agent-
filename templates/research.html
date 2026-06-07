@@ -16,17 +16,23 @@
         <span class="logo-icon">◈</span>
         <span class="logo-text">MarketLens</span>
       </a>
+      <button class="hamburger-btn" onclick="toggleMobileNav()">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
       <div class="nav-links">
         <a href="/" class="nav-btn-ghost">Home</a>
         {% if user and user.is_admin %}<a href="/admin/users" class="nav-btn-ghost" style="color:var(--amber)">⚙ Super Admin</a>{% endif %}
         {% if user %}
         <a href="/dashboard" class="nav-btn-ghost">Dashboard</a>
-        <span style="font-size:0.82rem;color:var(--muted);padding:0 0.25rem">{{ user.name }}</span>
+        {% if not user.is_admin %}<span style="font-size:0.82rem;color:var(--muted);padding:0 0.25rem">{{ user.name }}</span>{% endif %}
         <a href="/logout" class="nav-btn-ghost">Logout</a>
         {% else %}
         <a href="/login" class="nav-btn-ghost">Login</a>
         <a href="/register" class="nav-btn-primary">Register</a>
         {% endif %}
+        <a href="/privacy" class="nav-btn-ghost" style="color:var(--muted)">Privacy</a>
         <!-- Timezone Picker -->
         <div class="tz-picker" id="tz-picker">
           <button class="tz-trigger" onclick="toggleTZPanel()">
@@ -46,7 +52,33 @@
     </div>
   </nav>
 
+  <!-- Mobile Menu -->
+  <div class="nav-mobile" id="nav-mobile">
+    <div class="nav-mobile-links">
+      <a href="/" onclick="closeMobileNav()">Home</a>
+      {% if user and user.is_admin %}<a href="/admin/users" onclick="closeMobileNav()" style="color:var(--amber)">⚙ Super Admin</a>{% endif %}
+      {% if user %}
+      <a href="/dashboard" onclick="closeMobileNav()">Dashboard</a>
+      <a href="/logout" onclick="closeMobileNav()">Logout</a>
+      {% else %}
+      <a href="/login" onclick="closeMobileNav()">Login</a>
+      <a href="/register" class="nav-btn-primary" onclick="closeMobileNav()">Register</a>
+      {% endif %}
+      <a href="/privacy" onclick="closeMobileNav()">Privacy Policy</a>
+    </div>
+  </div>
+
   <main class="app-main">
+
+    <!-- Suspension Warning Banner -->
+    {% if user and not user.is_active %}
+    <div class="suspension-warning" style="background:#f59e0b;color:#1f2937;padding:1rem 1.5rem;margin-bottom:1.5rem;border-radius:9px;display:flex;gap:1rem;align-items:center">
+      <span style="font-size:1.4rem">⚠️</span>
+      <div>
+        <strong>Access Limited</strong> — Due to high traffic and API rate limits, new analyses are temporarily unavailable. Please try again later or email <a href="mailto:hasan@latticecode.pro" style="color:#1f2937;text-decoration:underline;font-weight:600">hasan@latticecode.pro</a> for assistance.
+      </div>
+    </div>
+    {% endif %}
 
     <!-- Tab Switcher -->
     <div class="tab-switcher">
@@ -724,6 +756,32 @@
         _toastEl._timer = setTimeout(() => { _toastEl.style.opacity = '0'; }, 3500);
       }
     })();
+
+    /* Mobile menu toggle */
+    function toggleMobileNav() {
+      const btn = document.querySelector('.hamburger-btn');
+      const menu = document.getElementById('nav-mobile');
+      btn.classList.toggle('active');
+      menu.classList.toggle('active');
+      document.body.style.overflow = menu.classList.contains('active') ? 'hidden' : '';
+    }
+
+    function closeMobileNav() {
+      const btn = document.querySelector('.hamburger-btn');
+      const menu = document.getElementById('nav-mobile');
+      btn.classList.remove('active');
+      menu.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    // Close menu when clicking outside
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('nav-mobile');
+      const btn = document.querySelector('.hamburger-btn');
+      if (menu.classList.contains('active') && !menu.contains(e.target) && !btn.contains(e.target)) {
+        closeMobileNav();
+      }
+    });
   </script>
 </body>
 </html>

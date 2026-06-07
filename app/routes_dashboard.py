@@ -334,11 +334,19 @@ def _deactivate_email_html(name: str) -> str:
     return f"""
     <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;
                 background:#0d1117;color:#f0f6fc;border-radius:12px;padding:2rem">
-      <h2 style="color:#ef4444;margin-top:0">Account Suspended</h2>
+      <h2 style="color:#f59e0b;margin-top:0">⚠️ Analysis Access Limited</h2>
       <p>Hi <strong>{name}</strong>,</p>
-      <p>Your MarketLens account has been temporarily <strong>deactivated</strong> by an administrator.
-         You will not be able to log in or use any features until your account is reinstated.</p>
-      <p>If you believe this is an error, please contact support.</p>
+      <p>Due to high traffic and API rate limitations, new Forex and Stock analyses are <strong>temporarily unavailable</strong>.
+         You can still <strong>login and view your dashboard</strong> with all your previous analyses.</p>
+      <p style="margin-top:1rem;padding:1rem;background:rgba(245,158,11,0.15);border-left:3px solid #f59e0b">
+         <strong>What you can do:</strong>
+         <ul style="margin:0.5rem 0 0 1.5rem;padding:0">
+           <li>View and export all your previous analyses</li>
+           <li>Access your dashboard and profile</li>
+           <li>Try running new analyses after a few hours when traffic decreases</li>
+         </ul>
+      </p>
+      <p style="margin-top:1rem">If you need immediate assistance, please reach out to <strong>hasan@latticecode.pro</strong>.</p>
       <p style="color:#6b7280;font-size:0.85rem;margin-top:1.5rem">— The MarketLens Team</p>
     </div>"""
 
@@ -375,11 +383,7 @@ async def admin_deactivate_user(request: Request, uid: str):
     await require_admin(request)
     client = _admin_client()
     client.table("profiles").update({"is_active": False}).eq("id", uid).execute()
-    # Also ban via Supabase Auth so active sessions are invalidated
-    try:
-        client.auth.admin.update_user_by_id(uid, {"ban_duration": "876600h"})  # ~100 years
-    except Exception:
-        pass
+    # Note: Not banning in Supabase Auth — allows user to still login but cannot analyze
     # Email notification (non-blocking)
     profile = _get_user_profile(uid)
     if profile.get("email"):

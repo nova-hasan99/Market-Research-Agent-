@@ -247,6 +247,13 @@ async def landing(request: Request):
     return templates.TemplateResponse(request, "index.html", {"user": user})
 
 
+@router.get("/privacy", response_class=HTMLResponse)
+async def privacy_page(request: Request):
+    from app.auth import get_current_user
+    user = await get_current_user(request)
+    return templates.TemplateResponse(request, "privacy.html", {"user": user})
+
+
 @router.get("/research", response_class=HTMLResponse)
 async def research_page(request: Request):
     user = await get_current_user(request)
@@ -373,6 +380,13 @@ async def analyze(req: AnalyzeRequest, request: Request):
         raise HTTPException(
             status_code=401,
             detail="Login required. Please sign in to use the analysis feature.",
+        )
+
+    # Check if user is suspended (analysis blocked)
+    if not _user.get("is_active", True):
+        raise HTTPException(
+            status_code=403,
+            detail="Your account access is temporarily limited due to high traffic and API rate limits. Please try again later or contact support at hasan@latticecode.pro for assistance.",
         )
 
     # Build symbols

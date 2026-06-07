@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy - MarketLens</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    .privacy-body {
+      background: var(--bg);
+      min-height: 100vh;
+      color: var(--text);
+    }
+
+    .privacy-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    .privacy-header {
+      text-align: center;
+      margin-bottom: 3rem;
+      padding: 2rem 0;
+    }
+
+    .privacy-header h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      margin: 0 0 0.5rem 0;
+      color: var(--text);
+    }
+
+    .privacy-header p {
+      font-size: 1rem;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .privacy-section {
+      margin-bottom: 2.5rem;
+      padding: 2rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .privacy-section h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin: 0 0 1rem 0;
+      color: var(--blue);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .privacy-section h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 1.5rem 0 0.75rem 0;
+      color: var(--text);
+    }
+
+    .privacy-section p {
+      margin: 0.75rem 0;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    .privacy-section ul {
+      margin: 1rem 0;
+      padding-left: 1.5rem;
+      color: var(--text-secondary);
+    }
+
+    .privacy-section li {
+      margin: 0.5rem 0;
+      line-height: 1.6;
+    }
+
+    .privacy-highlight {
+      background: rgba(59, 130, 246, 0.1);
+      border-left: 4px solid var(--blue);
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+      border-radius: 8px;
+      color: var(--text-secondary);
+    }
+
+    .privacy-footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+      border-top: 1px solid var(--border);
+      margin-top: 2rem;
+    }
+
+    .privacy-footer a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    .privacy-footer a:hover {
+      text-decoration: underline;
+    }
+
+    .disclaimer-box {
+      background: rgba(239, 68, 68, 0.08);
+      border: 2px solid rgba(239, 68, 68, 0.3);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 2rem 0;
+      color: var(--text-secondary);
+    }
+
+    .disclaimer-box h3 {
+      color: #ef4444;
+      margin-top: 0;
+    }
+
+    .toc {
+      background: var(--card2);
+      border-radius: 12px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .toc h3 {
+      margin-top: 0;
+      font-size: 1.2rem;
+    }
+
+    .toc ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .toc li {
+      margin: 0.5rem 0;
+    }
+
+    .toc a {
+      color: var(--blue);
+      text-decoration: none;
+      transition: all 0.3s;
+    }
+
+    .toc a:hover {
+      color: var(--blue-light);
+      text-decoration: underline;
+    }
+
+    .last-updated {
+      text-align: center;
+      padding: 1rem;
+      background: var(--card2);
+      border-radius: 8px;
+      margin-bottom: 2rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 768px) {
+      .privacy-container {
+        padding: 1rem;
+      }
+
+      .privacy-header h1 {
+        font-size: 1.8rem;
+      }
+
+      .privacy-section {
+        padding: 1.5rem;
+      }
+
+      .privacy-section h2 {
+        font-size: 1.2rem;
+      }
+    }
+  </style>
+</head>
+<body class="privacy-body app-body">
+
+  <!-- Navbar -->
+  <nav class="app-nav">
+    <div class="nav-inner">
+      <a href="/" class="logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">MarketLens</span>
+      </a>
+      <div class="nav-links">
+        <a href="/" class="nav-btn-ghost">Home</a>
+        {% if user and user.is_admin %}<a href="/admin/users" class="nav-btn-ghost" style="color:var(--amber)">⚙ Super Admin</a>{% endif %}
+        {% if user %}
+        <a href="/dashboard" class="nav-btn-ghost">Dashboard</a>
+        {% if not user.is_admin %}<span style="font-size:0.82rem;color:var(--muted);padding:0 0.25rem">{{ user.name }}</span>{% endif %}
+        <a href="/logout" class="nav-btn-ghost">Logout</a>
+        {% else %}
+        <a href="/login" class="nav-btn-ghost">Login</a>
+        <a href="/register" class="nav-btn-primary">Register</a>
+        {% endif %}
+        <a href="/privacy" class="nav-btn-ghost" style="color:var(--muted)">Privacy</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="privacy-container">
+
+    <div class="privacy-header">
+      <h1>🔒 Privacy Policy & Terms</h1>
+      <p>Your privacy and data protection is our priority</p>
+    </div>
+
+    <div class="last-updated">
+      Last updated: June 7, 2026
+    </div>
+
+    <!-- Table of Contents -->
+    <div class="toc">
+      <h3>📋 Contents</h3>
+      <ul>
+        <li><a href="#intro">1. Introduction</a></li>
+        <li><a href="#data-collection">2. Data Collection</a></li>
+        <li><a href="#data-usage">3. How We Use Your Data</a></li>
+        <li><a href="#data-security">4. Data Security</a></li>
+        <li><a href="#user-rights">5. Your Rights</a></li>
+        <li><a href="#cookies">6. Cookies & Tracking</a></li>
+        <li><a href="#third-party">7. Third-Party Services</a></li>
+        <li><a href="#disclaimer">8. Disclaimer</a></li>
+        <li><a href="#contact">9. Contact Us</a></li>
+      </ul>
+    </div>
+
+    <!-- Section 1: Introduction -->
+    <div class="privacy-section" id="intro">
+      <h2>🎯 1. Introduction</h2>
+      <p>
+        MarketLens ("we," "us," "our," or "Company") operates the MarketLens platform. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our website and services.
+      </p>
+      <p>
+        Please read this Privacy Policy carefully. If you do not agree with our policies and practices, please do not use our Services. By accessing and using MarketLens, you acknowledge that you have read and agree to this Privacy Policy.
+      </p>
+    </div>
+
+    <!-- Section 2: Data Collection -->
+    <div class="privacy-section" id="data-collection">
+      <h2>📊 2. Data Collection</h2>
+
+      <h3>2.1 Information You Provide</h3>
+      <p>We collect information you voluntarily provide when:</p>
+      <ul>
+        <li><strong>Creating an Account:</strong> Email address, name, password</li>
+        <li><strong>Using Services:</strong> Search queries, analysis preferences, saved analyses</li>
+        <li><strong>Contacting Support:</strong> Messages, feedback, and support requests</li>
+        <li><strong>Payment Information:</strong> Billing details (if applicable)</li>
+      </ul>
+
+      <h3>2.2 Automatically Collected Information</h3>
+      <p>We automatically collect certain information about your device and usage:</p>
+      <ul>
+        <li>IP address and browser type</li>
+        <li>Pages visited and time spent on each page</li>
+        <li>Referral source and click-through rates</li>
+        <li>Device type, operating system, and device identifiers</li>
+        <li>Cookies and similar tracking technologies</li>
+      </ul>
+
+      <h3>2.3 Information from Third Parties</h3>
+      <p>We may receive information from:</p>
+      <ul>
+        <li>Data providers (TwelveData, AlphaVantage, Polygon, etc.)</li>
+        <li>Analytics platforms and advertising partners</li>
+        <li>Payment processors</li>
+        <li>Social media platforms (if you link your account)</li>
+      </ul>
+    </div>
+
+    <!-- Section 3: Data Usage -->
+    <div class="privacy-section" id="data-usage">
+      <h2>⚙️ 3. How We Use Your Data</h2>
+      <p>We use your information for the following purposes:</p>
+      <ul>
+        <li><strong>Service Delivery:</strong> Providing, maintaining, and improving the platform</li>
+        <li><strong>Account Management:</strong> Creating and managing your account, authentication</li>
+        <li><strong>Communication:</strong> Sending updates, support responses, and service notifications</li>
+        <li><strong>Analytics:</strong> Understanding usage patterns and improving user experience</li>
+        <li><strong>Security:</strong> Detecting and preventing fraud, abuse, and security issues</li>
+        <li><strong>Legal Compliance:</strong> Meeting regulatory and legal obligations</li>
+        <li><strong>Marketing:</strong> Sending promotional content (with your consent)</li>
+      </ul>
+
+      <div class="privacy-highlight">
+        <strong>Note:</strong> We do not sell or rent your personal data to third parties. Data may be shared with service providers who assist us under strict confidentiality agreements.
+      </div>
+    </div>
+
+    <!-- Section 4: Data Security -->
+    <div class="privacy-section" id="data-security">
+      <h2>🔐 4. Data Security</h2>
+      <p>
+        We implement industry-standard security measures to protect your personal information, including:
+      </p>
+      <ul>
+        <li>SSL/TLS encryption for data in transit</li>
+        <li>Secure password hashing and salting</li>
+        <li>Supabase enterprise-grade database security</li>
+        <li>Regular security audits and vulnerability assessments</li>
+        <li>Role-based access control (RBAC)</li>
+        <li>API key management and rate limiting</li>
+      </ul>
+
+      <div class="privacy-highlight">
+        <strong>Important:</strong> While we implement robust security measures, no system is completely secure. We cannot guarantee absolute security of your data. You are responsible for maintaining the confidentiality of your account credentials.
+      </div>
+    </div>
+
+    <!-- Section 5: Your Rights -->
+    <div class="privacy-section" id="user-rights">
+      <h2>👤 5. Your Rights</h2>
+      <p>You have the following rights regarding your personal data:</p>
+      <ul>
+        <li><strong>Access:</strong> Request a copy of your data</li>
+        <li><strong>Correction:</strong> Update or correct inaccurate information</li>
+        <li><strong>Deletion:</strong> Request deletion of your account and associated data</li>
+        <li><strong>Portability:</strong> Export your data in a standard format</li>
+        <li><strong>Opt-Out:</strong> Unsubscribe from marketing communications</li>
+        <li><strong>Restrict Processing:</strong> Limit how we use your data</li>
+      </ul>
+
+      <p>
+        To exercise these rights, contact us at <a href="mailto:hasan@latticecode.pro" style="color:var(--blue)">hasan@latticecode.pro</a>. We will respond within 30 days of your request.
+      </p>
+    </div>
+
+    <!-- Section 6: Cookies -->
+    <div class="privacy-section" id="cookies">
+      <h2>🍪 6. Cookies & Tracking Technologies</h2>
+      <p>
+        MarketLens uses cookies and similar technologies to enhance your experience:
+      </p>
+      <ul>
+        <li><strong>Essential Cookies:</strong> Required for authentication and security</li>
+        <li><strong>Performance Cookies:</strong> Help us understand how you use the platform</li>
+        <li><strong>Preference Cookies:</strong> Remember your settings and preferences</li>
+        <li><strong>Analytics Cookies:</strong> Track usage patterns (Google Analytics, etc.)</li>
+      </ul>
+
+      <p>
+        You can control cookies through your browser settings. Disabling essential cookies may affect platform functionality.
+      </p>
+    </div>
+
+    <!-- Section 7: Third-Party Services -->
+    <div class="privacy-section" id="third-party">
+      <h2>🔗 7. Third-Party Services</h2>
+      <p>
+        MarketLens integrates with third-party services for market data and analytics:
+      </p>
+      <ul>
+        <li><strong>Data Providers:</strong> TwelveData, AlphaVantage, Polygon, Finnhub, Yahoo Finance</li>
+        <li><strong>Authentication:</strong> Supabase Auth</li>
+        <li><strong>Database:</strong> Supabase PostgreSQL</li>
+        <li><strong>Analytics:</strong> Google Analytics</li>
+        <li><strong>AI Services:</strong> Gemini, Claude, Groq, OpenAI (optional)</li>
+      </ul>
+
+      <p>
+        These third parties have their own privacy policies. We recommend reviewing their privacy statements before providing information.
+      </p>
+    </div>
+
+    <!-- Section 8: Disclaimer -->
+    <div class="privacy-section" id="disclaimer">
+      <h2>⚖️ 8. Important Disclaimer</h2>
+
+      <div class="disclaimer-box">
+        <h3>Liability & Responsibility Waiver</h3>
+        <p>
+          <strong>IMPORTANT:</strong> The operators, administrators, and authorities associated with MarketLens are NOT responsible for:
+        </p>
+        <ul>
+          <li>Inaccuracy, incompleteness, or errors in market data provided by third parties</li>
+          <li>Financial losses resulting from reliance on analysis or recommendations</li>
+          <li>Data breaches or security incidents (though we implement security best practices)</li>
+          <li>Service interruptions, downtime, or unavailability</li>
+          <li>Decisions made based on the platform's analysis or summaries</li>
+          <li>Actions taken by users following the platform's insights</li>
+          <li>Any direct, indirect, incidental, or consequential damages</li>
+        </ul>
+      </div>
+
+      <h3>Financial Disclaimer</h3>
+      <p>
+        <strong>MarketLens provides information and analysis tools for educational and informational purposes only. It is NOT financial advice.</strong>
+      </p>
+      <ul>
+        <li>Always conduct your own research before making trading decisions</li>
+        <li>Consult with a licensed financial advisor for personalized advice</li>
+        <li>Past performance does not guarantee future results</li>
+        <li>All trading and investments carry inherent risk of loss</li>
+        <li>Only invest money you can afford to lose</li>
+      </ul>
+
+      <h3>Data Accuracy</h3>
+      <p>
+        While we use reliable data providers, we cannot guarantee 100% accuracy of market data. Real-time data may have delays. Always verify critical information from official sources.
+      </p>
+    </div>
+
+    <!-- Section 9: Contact -->
+    <div class="privacy-section" id="contact">
+      <h2>📧 9. Contact Us</h2>
+      <p>
+        If you have questions about this Privacy Policy, wish to exercise your rights, or need to report a security issue, please contact us:
+      </p>
+      <p>
+        <strong>Email:</strong> <a href="mailto:hasan@latticecode.pro" style="color:var(--blue)">hasan@latticecode.pro</a><br>
+        <strong>Website:</strong> <a href="/" style="color:var(--blue)">MarketLens</a>
+      </p>
+      <p>
+        We will respond to all privacy-related inquiries within 7-10 business days.
+      </p>
+    </div>
+
+    <!-- Changes to Policy -->
+    <div class="privacy-section">
+      <h2>📝 Changes to This Policy</h2>
+      <p>
+        MarketLens reserves the right to update this Privacy Policy at any time. Changes will be effective immediately upon posting to the website. Your continued use of the platform following the posting of a revised Privacy Policy constitutes your acceptance of the changes.
+      </p>
+      <p>
+        We encourage you to review this Privacy Policy periodically to stay informed about how we protect your information.
+      </p>
+    </div>
+
+  </main>
+
+  <footer class="privacy-footer">
+    <p>&copy; 2024-2026 MarketLens. All rights reserved. | <a href="/privacy">Privacy Policy</a> | <a href="/">Home</a></p>
+    <p style="font-size:0.85rem;margin-top:1rem">This platform is provided "as-is" without warranties or guarantees.</p>
+  </footer>
+
+</body>
+</html>
