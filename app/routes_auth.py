@@ -345,41 +345,42 @@ def _pkce_pair() -> tuple[str, str]:
 # ── GET /auth/google ──────────────────────────────────────────────────────────
 @router.get("/auth/google")
 async def auth_google(request: Request):
-    """Initiate Google OAuth with our own PKCE pair so the verifier is in a cookie."""
+    """Initiate Google OAuth.
+    Verifier is embedded in redirect_to URL so it survives the cross-domain
+    redirect chain without relying on cookies (which can be lost via SameSite).
+    """
     verifier, challenge = _pkce_pair()
+    # Embed verifier directly in callback URL — Supabase preserves query params
+    callback_url = f"{SITE_URL}/auth/callback?cv={verifier}"
     qs = urllib.parse.urlencode({
-        "provider":               "google",
-        "redirect_to":            f"{SITE_URL}/auth/callback",
-        "code_challenge":         challenge,
-        "code_challenge_method":  "S256",
+        "provider":              "google",
+        "redirect_to":           callback_url,
+        "code_challenge":        challenge,
+        "code_challenge_method": "S256",
     })
-    oauth_url = f"{SUPABASE_URL}/auth/v1/authorize?{qs}"
-    redirect  = RedirectResponse(oauth_url, status_code=302)
-    redirect.set_cookie(
-        "pkce_verifier", verifier,
-        max_age=300, httponly=True, secure=True, samesite="lax",
-    )
-    return redirect
+    return RedirectResponse(f"{SUPABASE_URL}/auth/v1/authorize?{qs}", status_code=302)
 
 
 # ── GET /auth/callback ────────────────────────────────────────────────────────
 @router.get("/auth/callback")
 async def auth_callback(request: Request):
-    """Supabase redirects here after Google OAuth with ?code=xxx."""
+    """Supabase redirects here after Google OAuth with ?code=xxx&cv=<verifier>."""
     from datetime import datetime, timezone
 
-    code = request.query_params.get("code", "")
+    code          = request.query_params.get("code", "")
+    code_verifier = request.query_params.get("cv",   "")
+
     if not code:
         return RedirectResponse("/login?error=OAuth+authentication+failed", status_code=302)
-
-    code_verifier = request.cookies.get("pkce_verifier", "")
+    if not code_verifier:
+        return RedirectResponse("/login?error=Invalid+OAuth+state.+Please+try+again.", status_code=302)
 
     try:
-        client = get_client()
-        params = {"auth_code": code}
-        if code_verifier:
-            params["code_verifier"] = code_verifier
-        response = client.auth.exchange_code_for_session(params)
+        client   = get_client()
+        response = client.auth.exchange_code_for_session({
+            "auth_code":     code,
+            "code_verifier": code_verifier,
+        })
 
         if not response or not response.session:
             return RedirectResponse("/login?error=Could+not+create+session", status_code=302)
@@ -387,25 +388,44 @@ async def auth_callback(request: Request):
         session = response.session
         user    = response.user
 
-        # For brand-new Google accounts: generate a password so they can also
-        # sign in with email + password, then send welcome email with credentials.
+        # Ensure profile row exists for this Google user
+        if user:
+            try:
+                admin = get_admin_client()
+                meta  = user.user_metadata or {}
+                name  = meta.get("full_name") or meta.get("name") or (user.email or "").split("@")[0]
+                existing = (
+                    admin.table("profiles")
+                    .select("id")
+                    .eq("id", user.id)
+                    .maybe_single()
+                    .execute()
+                )
+                if not existing or not existing.data:
+                    admin.table("profiles").insert({
+                        "id":        user.id,
+                        "email":     user.email,
+                        "name":      name,
+                        "is_admin":  False,
+                        "is_active": True,
+                    }).execute()
+            except Exception:
+                pass
+
+        # For brand-new Google accounts: generate a password + send welcome email
         if user and user.email:
             try:
                 created_at = user.created_at
                 if created_at:
                     if isinstance(created_at, str):
                         created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                    diff = (datetime.now(timezone.utc) - created_at).total_seconds()
-                    if diff < 30:
+                    if (datetime.now(timezone.utc) - created_at).total_seconds() < 30:
                         meta      = user.user_metadata or {}
                         name      = meta.get("full_name") or meta.get("name") or user.email.split("@")[0]
                         auto_pass = _generate_password()
-                        # Set the generated password via admin API
                         try:
                             admin = get_admin_client()
-                            admin.auth.admin.update_user_by_id(
-                                user.id, {"password": auto_pass}
-                            )
+                            admin.auth.admin.update_user_by_id(user.id, {"password": auto_pass})
                         except Exception:
                             pass
                         asyncio.get_event_loop().run_in_executor(
@@ -416,9 +436,8 @@ async def auth_callback(request: Request):
             except Exception:
                 pass
 
-        redirect = RedirectResponse("/dashboard", status_code=302)
+        redirect = RedirectResponse("/research", status_code=302)
         set_auth_cookie(redirect, session.access_token, session.refresh_token)
-        redirect.delete_cookie("pkce_verifier")
         return redirect
 
     except Exception as exc:
