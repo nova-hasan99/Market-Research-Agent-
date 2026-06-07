@@ -338,7 +338,15 @@ async def auth_google(request: Request):
             "provider": "google",
             "options":  {"redirect_to": f"{SITE_URL}/auth/callback"},
         })
-        return RedirectResponse(response.url, status_code=302)
+        redirect = RedirectResponse(response.url, status_code=302)
+        # Store PKCE code_verifier in a short-lived cookie for use in /auth/callback
+        verifier = getattr(response, "code_verifier", None)
+        if verifier:
+            redirect.set_cookie(
+                "pkce_verifier", verifier,
+                max_age=300, httponly=True, secure=True, samesite="lax",
+            )
+        return redirect
     except Exception as exc:
         msg = str(exc).replace(" ", "+")
         return RedirectResponse(f"/login?error={msg}", status_code=302)
@@ -354,9 +362,14 @@ async def auth_callback(request: Request):
     if not code:
         return RedirectResponse("/login?error=OAuth+authentication+failed", status_code=302)
 
+    code_verifier = request.cookies.get("pkce_verifier", "")
+
     try:
-        client   = get_client()
-        response = client.auth.exchange_code_for_session({"auth_code": code})
+        client = get_client()
+        params = {"auth_code": code}
+        if code_verifier:
+            params["code_verifier"] = code_verifier
+        response = client.auth.exchange_code_for_session(params)
 
         if not response or not response.session:
             return RedirectResponse("/login?error=Could+not+create+session", status_code=302)
@@ -395,6 +408,7 @@ async def auth_callback(request: Request):
 
         redirect = RedirectResponse("/dashboard", status_code=302)
         set_auth_cookie(redirect, session.access_token, session.refresh_token)
+        redirect.delete_cookie("pkce_verifier")
         return redirect
 
     except Exception as exc:
