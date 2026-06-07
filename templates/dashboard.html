@@ -50,15 +50,6 @@
 
 <main class="db-main">
 
-  <!-- Suspension Warning Banner -->
-  {% if user and not user.is_active %}
-  <div class="suspension-warning" style="background:#f59e0b;color:#1f2937;padding:1rem 1.5rem;margin-bottom:1.5rem;border-radius:9px;display:flex;gap:1rem;align-items:center">
-    <span style="font-size:1.4rem">⚠️</span>
-    <div>
-      <strong>Access Limited</strong> — Due to high traffic and API rate limits, new analyses are temporarily unavailable. Please try again later or email <a href="mailto:hasan@latticecode.pro" style="color:#1f2937;text-decoration:underline;font-weight:600">hasan@latticecode.pro</a> for assistance.
-    </div>
-  </div>
-  {% endif %}
 
   <!-- Auto-delete warning -->
   <div class="auto-delete-banner">
@@ -116,7 +107,7 @@
           {% for a in forex_analyses %}
           <tr data-id="{{ a.id }}" data-type="forex">
             <td class="col-check"><input type="checkbox" class="row-check" onchange="onRowCheck()" /></td>
-            <td class="col-date">{{ a.created_at[:16] | replace('T', ' ') if a.created_at else '-' }}</td>
+            <td class="col-date" data-utc="{{ a.created_at if a.created_at else '' }}">{{ a.created_at[:16] | replace('T', ' ') if a.created_at else '-' }}</td>
             <td class="col-asset"><strong>{{ a.asset }}</strong></td>
             <td class="col-score">
               <span class="score-badge {% if a.score >= 70 %}score-up{% elif a.score >= 50 %}score-amber{% else %}score-down{% endif %}">
@@ -161,7 +152,7 @@
           {% for a in stock_analyses %}
           <tr data-id="{{ a.id }}" data-type="stock">
             <td class="col-check"><input type="checkbox" class="row-check" onchange="onRowCheck()" /></td>
-            <td class="col-date">{{ a.created_at[:16] | replace('T', ' ') if a.created_at else '-' }}</td>
+            <td class="col-date" data-utc="{{ a.created_at if a.created_at else '' }}">{{ a.created_at[:16] | replace('T', ' ') if a.created_at else '-' }}</td>
             <td class="col-asset"><strong>{{ a.asset }}</strong></td>
             <td class="col-score">
               <span class="score-badge {% if a.score >= 70 %}score-up{% elif a.score >= 50 %}score-amber{% else %}score-down{% endif %}">
@@ -281,6 +272,26 @@
       closeMobileNav();
     }
   });
+
+  // Auto-convert UTC timestamps to browser local timezone
+  (function() {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    document.querySelectorAll('.col-date[data-utc]').forEach(function(cell) {
+      const raw = cell.dataset.utc;
+      if (!raw) return;
+      try {
+        const s = raw.includes('T') ? raw : raw.replace(' ', 'T') + 'Z';
+        const d = new Date(s);
+        if (isNaN(d.getTime())) return;
+        cell.textContent = d.toLocaleString('en-GB', {
+          timeZone: tz,
+          year: 'numeric', month: 'short', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', hour12: false,
+        });
+        cell.title = 'Timezone: ' + tz;
+      } catch(e) {}
+    });
+  })();
 </script>
 
 </body>

@@ -5,7 +5,7 @@ Reads/writes the 'sb_access_token' and 'sb_refresh_token' cookies.
 from fastapi import Request, HTTPException
 from fastapi.responses import RedirectResponse
 
-from app.db import get_client
+from app.db import get_client, get_admin_client
 
 
 def _profile_from_supabase(user_obj) -> dict:
@@ -40,21 +40,31 @@ async def get_current_user(request: Request) -> dict | None:
         user = _profile_from_supabase(response.user)
 
         # Fetch profile row for is_admin / is_active
+        # Must use admin client (service key) to bypass RLS on the profiles table
         try:
+            admin = get_admin_client()
             prof = (
-                client.table("profiles")
+                admin.table("profiles")
                 .select("is_admin,is_active,name")
                 .eq("id", user["id"])
                 .maybe_single()
                 .execute()
             )
-            if prof.data:
+            if prof and prof.data:
                 user["is_admin"]  = bool(prof.data.get("is_admin", False))
                 user["is_active"] = bool(prof.data.get("is_active", True))
                 if prof.data.get("name"):
                     user["name"] = prof.data["name"]
-        except Exception:
-            pass  # profile fetch is optional
+            else:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "No profile row found for user %s — defaulting is_active=True", user["id"]
+                )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(
+                "Profile fetch FAILED for %s: %s — defaulting is_active=True", user["id"], e
+            )
 
         # Fallback: if ADMIN_EMAIL is set in config and matches, grant admin
         # This ensures the super admin always has access even if the profiles
@@ -71,29 +81,38 @@ async def get_current_user(request: Request) -> dict | None:
         return None
 
 
-async def require_user(request: Request) -> dict:
+async def require_user(request: Request):
     """
-    Like get_current_user but returns a RedirectResponse to /login if unauthenticated.
-    Raise the returned response in the calling route.
+    Check if user is authenticated.
+    Returns user if logged in (even if suspended), or RedirectResponse if not.
+    Suspended users can access dashboard but NOT research/analysis.
     """
+    from fastapi.responses import RedirectResponse
+
     user = await get_current_user(request)
     if not user:
-        from fastapi.responses import RedirectResponse
-        raise RedirectResponse(url="/login", status_code=302)
-    if not user.get("is_active", True):
-        from fastapi.responses import RedirectResponse
-        raise RedirectResponse(url="/login?error=account_deactivated", status_code=302)
+        return RedirectResponse(url="/login", status_code=302)
+    # Allow suspended users to access dashboard (warning banner will show)
+    # But block them from analysis in the API endpoint
     return user
 
 
-async def require_admin(request: Request) -> dict:
+async def require_admin(request: Request):
     """
     Like require_user but additionally requires is_admin=True.
+    Returns user if valid, or RedirectResponse if not.
     """
-    user = await require_user(request)
+    from fastapi.responses import RedirectResponse
+
+    result = await require_user(request)
+
+    # If require_user returned a redirect, return it
+    if isinstance(result, RedirectResponse):
+        return result
+
+    user = result
     if not user.get("is_admin"):
-        from fastapi.responses import RedirectResponse
-        raise RedirectResponse(url="/login?error=unauthorized", status_code=302)
+        return RedirectResponse(url="/login?error=unauthorized", status_code=302)
     return user
 
 

@@ -72,10 +72,10 @@
 
     <!-- Suspension Warning Banner -->
     {% if user and not user.is_active %}
-    <div class="suspension-warning" style="background:#f59e0b;color:#1f2937;padding:1rem 1.5rem;margin-bottom:1.5rem;border-radius:9px;display:flex;gap:1rem;align-items:center">
+    <div style="background:#f59e0b;color:#1f2937;padding:1rem 1.5rem;margin-bottom:1.5rem;border-radius:9px;display:flex;gap:1rem;align-items:center">
       <span style="font-size:1.4rem">⚠️</span>
       <div>
-        <strong>Access Limited</strong> — Due to high traffic and API rate limits, new analyses are temporarily unavailable. Please try again later or email <a href="mailto:hasan@latticecode.pro" style="color:#1f2937;text-decoration:underline;font-weight:600">hasan@latticecode.pro</a> for assistance.
+        <strong>Access Limited:</strong> Due to high traffic and API rate limits, new analyses are temporarily unavailable. Please try again later or email <a href="mailto:hasan@latticecode.pro" style="color:#1f2937;text-decoration:underline;font-weight:600">hasan@latticecode.pro</a> for assistance.
       </div>
     </div>
     {% endif %}

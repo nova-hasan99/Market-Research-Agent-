@@ -267,10 +267,12 @@ async def privacy_page(request: Request):
 
 @router.get("/research", response_class=HTMLResponse)
 async def research_page(request: Request):
+    from fastapi.responses import RedirectResponse
+
     user = await get_current_user(request)
     if not user:
-        from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/login?next=/research", status_code=302)
+
     if _is_spa_request(request):
         return templates.TemplateResponse(request, "research.html", {"user": user, "spa_mode": True})
     return templates.TemplateResponse(request, "research.html", {"user": user})

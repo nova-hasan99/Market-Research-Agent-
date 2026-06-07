@@ -37,7 +37,11 @@ def _fetch_user_analyses(user_id: str) -> list:
 # ─── GET /dashboard ───────────────────────────────────────────────────────────
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    user = await require_user(request)
+    from fastapi.responses import RedirectResponse
+    result = await require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    user = result
 
     # Support admin viewing another user's dashboard
     view_user_id = request.query_params.get("user_id", user["id"])
