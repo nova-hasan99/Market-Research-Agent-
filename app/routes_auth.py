@@ -6,6 +6,10 @@ import smtplib
 import asyncio
 import secrets
 import string
+import hashlib
+import base64
+import os
+import urllib.parse
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -15,6 +19,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.auth import get_current_user, set_auth_cookie, clear_auth_cookies
 from app.config import (
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM, SITE_URL,
+    SUPABASE_URL,
 )
 from app.db import get_client, get_admin_client
 from app.deps import templates
@@ -328,28 +333,33 @@ async def reset_password_submit(
         return RedirectResponse(f"/reset-password?error={msg}", status_code=302)
 
 
+def _pkce_pair() -> tuple[str, str]:
+    """Generate a PKCE code_verifier and code_challenge (S256)."""
+    verifier  = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b"=").decode()
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode()).digest()
+    ).rstrip(b"=").decode()
+    return verifier, challenge
+
+
 # ── GET /auth/google ──────────────────────────────────────────────────────────
 @router.get("/auth/google")
 async def auth_google(request: Request):
-    """Initiate Google OAuth — redirects to Google consent screen via Supabase."""
-    try:
-        client   = get_client()
-        response = client.auth.sign_in_with_oauth({
-            "provider": "google",
-            "options":  {"redirect_to": f"{SITE_URL}/auth/callback"},
-        })
-        redirect = RedirectResponse(response.url, status_code=302)
-        # Store PKCE code_verifier in a short-lived cookie for use in /auth/callback
-        verifier = getattr(response, "code_verifier", None)
-        if verifier:
-            redirect.set_cookie(
-                "pkce_verifier", verifier,
-                max_age=300, httponly=True, secure=True, samesite="lax",
-            )
-        return redirect
-    except Exception as exc:
-        msg = str(exc).replace(" ", "+")
-        return RedirectResponse(f"/login?error={msg}", status_code=302)
+    """Initiate Google OAuth with our own PKCE pair so the verifier is in a cookie."""
+    verifier, challenge = _pkce_pair()
+    qs = urllib.parse.urlencode({
+        "provider":               "google",
+        "redirect_to":            f"{SITE_URL}/auth/callback",
+        "code_challenge":         challenge,
+        "code_challenge_method":  "S256",
+    })
+    oauth_url = f"{SUPABASE_URL}/auth/v1/authorize?{qs}"
+    redirect  = RedirectResponse(oauth_url, status_code=302)
+    redirect.set_cookie(
+        "pkce_verifier", verifier,
+        max_age=300, httponly=True, secure=True, samesite="lax",
+    )
+    return redirect
 
 
 # ── GET /auth/callback ────────────────────────────────────────────────────────
