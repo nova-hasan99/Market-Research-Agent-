@@ -239,11 +239,20 @@ _EMPTY_OPT  = {"put_oi": None, "call_oi": None, "ratio": None, "signal": "neutra
 _EMPTY_SECT = {"etf": "N/A", "etf_1m": None, "signal": "neutral", "label": "Unavailable", "available": False}
 
 
+# ── Helper: Detect SPA requests ─────────────────────────────────────────────
+def _is_spa_request(request: Request) -> bool:
+    """Check if request is from SPA router (AJAX)"""
+    return request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
 # ── Pages ─────────────────────────────────────────────────────────────────────
 @router.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
     from app.auth import get_current_user
     user = await get_current_user(request)
+    if _is_spa_request(request):
+        # Return only the hero/content for SPA
+        return templates.TemplateResponse(request, "index.html", {"user": user, "spa_mode": True})
     return templates.TemplateResponse(request, "index.html", {"user": user})
 
 
@@ -251,6 +260,8 @@ async def landing(request: Request):
 async def privacy_page(request: Request):
     from app.auth import get_current_user
     user = await get_current_user(request)
+    if _is_spa_request(request):
+        return templates.TemplateResponse(request, "privacy.html", {"user": user, "spa_mode": True})
     return templates.TemplateResponse(request, "privacy.html", {"user": user})
 
 
@@ -260,6 +271,8 @@ async def research_page(request: Request):
     if not user:
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/login?next=/research", status_code=302)
+    if _is_spa_request(request):
+        return templates.TemplateResponse(request, "research.html", {"user": user, "spa_mode": True})
     return templates.TemplateResponse(request, "research.html", {"user": user})
 
 
