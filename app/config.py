@@ -32,15 +32,14 @@ ADMIN_PASS  = os.getenv("VITE_ADMIN_PASSWORD", "")
 
 # ── SMTP (primary — works on localhost and platforms that allow SMTP) ─────────
 SMTP_HOST     = os.getenv("SMTP_HOST", "")
-SMTP_PORT     = int(os.getenv("SMTP_PORT", "587"))
+SMTP_PORT     = int(os.getenv("SMTP_PORT") or "587")
 SMTP_USER     = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM     = os.getenv("SMTP_FROM", SMTP_USER)
 
 # ── Brevo API (fallback — HTTP-based, works on Render free plan) ──────────────
+# Needs manual activation: email contact@brevo.com to request transactional sending
 # Sign up free → https://brevo.com → SMTP & API → API Keys → Generate
-# Only needs sender EMAIL verified (not full domain) — 300 emails/day free
-# Add BREVO_API_KEY to Render dashboard → Environment Variables
 BREVO_API_KEY   = os.getenv("BREVO_API_KEY", "")
 BREVO_FROM_NAME = os.getenv("BREVO_FROM_NAME", "MarketLens")
 BREVO_FROM_EMAIL= os.getenv("BREVO_FROM_EMAIL", SMTP_USER)

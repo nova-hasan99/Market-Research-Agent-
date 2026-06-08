@@ -81,7 +81,9 @@
       "Bash(curl -s http://localhost:8000/health)",
       "Bash(python -c \"from app import routes; print\\('routes.py OK'\\)\")",
       "Bash(python -m py_compile app/routes.py app/routes_dashboard.py)",
-      "Bash(python main.py)"
+      "Bash(python main.py)",
+      "Bash(python -c \"import app.config\")",
+      "Bash(python -c \"import app.config; print\\('OK'\\)\")"
     ]
   }
 }
