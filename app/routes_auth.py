@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.auth import get_current_user, set_auth_cookie, clear_auth_cookies
 from app.config import (
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM, SITE_URL,
-    SUPABASE_URL, RESEND_API_KEY, RESEND_FROM,
+    SUPABASE_URL, BREVO_API_KEY, BREVO_FROM_NAME, BREVO_FROM_EMAIL,
 )
 from app.db import get_client, get_admin_client
 from app.deps import templates
@@ -49,22 +49,23 @@ def _send_email(to: str, subject: str, html: str) -> None:
         except Exception:
             pass    # SMTP blocked (e.g. Render free plan) → try Resend
 
-    # ── Attempt 2: Resend REST API (HTTP — never blocked by hosting platforms) ─
-    if RESEND_API_KEY:
+    # ── Attempt 2: Brevo REST API (HTTP — never blocked by hosting platforms) ───
+    # Brevo only needs sender email verified (not full domain). 300 emails/day free.
+    if BREVO_API_KEY:
         try:
-            import urllib.request, json
-            payload = json.dumps({
-                "from":    RESEND_FROM,
-                "to":      [to],
-                "subject": subject,
-                "html":    html,
+            import json as _json
+            payload = _json.dumps({
+                "sender":      {"name": BREVO_FROM_NAME, "email": BREVO_FROM_EMAIL},
+                "to":          [{"email": to}],
+                "subject":     subject,
+                "htmlContent": html,
             }).encode()
             req = urllib.request.Request(
-                "https://api.resend.com/emails",
+                "https://api.brevo.com/v3/smtp/email",
                 data=payload,
                 headers={
-                    "Authorization": f"Bearer {RESEND_API_KEY}",
-                    "Content-Type":  "application/json",
+                    "api-key":      BREVO_API_KEY,
+                    "Content-Type": "application/json",
                 },
                 method="POST",
             )

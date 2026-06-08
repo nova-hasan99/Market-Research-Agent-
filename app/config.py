@@ -37,11 +37,13 @@ SMTP_USER     = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM     = os.getenv("SMTP_FROM", SMTP_USER)
 
-# ── Resend API (fallback — HTTP-based, works on Render free plan) ─────────────
-# Sign up free at https://resend.com → API Keys → Create Key
-# Add RESEND_API_KEY to Render dashboard environment variables
-RESEND_API_KEY  = os.getenv("RESEND_API_KEY", "")
-RESEND_FROM     = os.getenv("RESEND_FROM", "MarketLens <team@latticecode.pro>")
+# ── Brevo API (fallback — HTTP-based, works on Render free plan) ──────────────
+# Sign up free → https://brevo.com → SMTP & API → API Keys → Generate
+# Only needs sender EMAIL verified (not full domain) — 300 emails/day free
+# Add BREVO_API_KEY to Render dashboard → Environment Variables
+BREVO_API_KEY   = os.getenv("BREVO_API_KEY", "")
+BREVO_FROM_NAME = os.getenv("BREVO_FROM_NAME", "MarketLens")
+BREVO_FROM_EMAIL= os.getenv("BREVO_FROM_EMAIL", SMTP_USER)
 SITE_URL      = os.getenv("SITE_URL", "http://localhost:8000")
 
 # ── Correlation & Sentiment ──────────────────────────────────────────────────
