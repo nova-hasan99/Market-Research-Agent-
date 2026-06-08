@@ -86,7 +86,10 @@
       "Bash(python -c \"import app.config; print\\('OK'\\)\")",
       "Bash(python -c \"from app.auth import get_current_user, set_auth_cookie, clear_auth_cookies, require_user, require_admin; print\\('imports OK'\\)\")",
       "Bash(python -m py_compile app/auth.py)",
-      "Bash(python -m py_compile app/routes_auth.py)"
+      "Bash(python -m py_compile app/routes_auth.py)",
+      "Bash(python -m py_compile main.py)",
+      "Bash(python -m py_compile templates/404.html)",
+      "Bash(python -m py_compile static/css/dashboard.css)"
     ]
   }
 }

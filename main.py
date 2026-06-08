@@ -7,15 +7,32 @@ Note: python-multipart is required for form parsing (included in requirements.tx
 """
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.routes import router
 from app.routes_auth import router as auth_router
 from app.routes_dashboard import router as dashboard_router
+from app.deps import templates
 
 app = FastAPI(title="Market Research Platform", version="3.0")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404:
+        return templates.TemplateResponse(
+            request, "404.html", {}, status_code=404
+        )
+    # Default handling for other HTTP errors
+    return HTMLResponse(
+        content=f"<h1>{exc.status_code}</h1><p>{exc.detail}</p>",
+        status_code=exc.status_code,
+    )
+
 
 @app.head("/")
 async def health_head():

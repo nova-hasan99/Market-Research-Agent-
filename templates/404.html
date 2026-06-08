@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>404 — Page Not Found · MarketLens</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    html, body { height: 100%; }
+    .nf-body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    /* ── Background orbs ── */
+    .nf-orb {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      filter: blur(80px);
+      opacity: 0.18;
+    }
+    .nf-orb-1 {
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, #2563eb, transparent 70%);
+      top: -180px; left: -150px;
+      animation: nfFloat1 12s ease-in-out infinite;
+    }
+    .nf-orb-2 {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, #7c3aed, transparent 70%);
+      bottom: -120px; right: -120px;
+      animation: nfFloat2 15s ease-in-out infinite;
+    }
+    .nf-orb-3 {
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, #10b981, transparent 70%);
+      top: 50%; right: 15%;
+      animation: nfFloat3 10s ease-in-out infinite;
+      opacity: 0.10;
+    }
+
+    @keyframes nfFloat1 {
+      0%,100% { transform: translate(0,0); }
+      50%      { transform: translate(40px,-50px); }
+    }
+    @keyframes nfFloat2 {
+      0%,100% { transform: translate(0,0); }
+      50%      { transform: translate(-35px,40px); }
+    }
+    @keyframes nfFloat3 {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-30px); }
+    }
+
+    /* ── Top nav bar ── */
+    .nf-nav {
+      position: relative; z-index: 10;
+      padding: 1.1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(6,11,20,0.7);
+      backdrop-filter: blur(12px);
+    }
+    .nf-logo {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-weight: 700; font-size: 1.05rem; color: var(--text);
+      text-decoration: none;
+    }
+    .nf-logo-icon { font-size: 1.25rem; color: var(--blue); }
+
+    /* ── Main content ── */
+    .nf-main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      position: relative;
+      z-index: 5;
+    }
+
+    .nf-card {
+      text-align: center;
+      max-width: 520px;
+      width: 100%;
+    }
+
+    /* Grid lines decoration */
+    .nf-grid-deco {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(37,99,235,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(37,99,235,0.04) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* The big 404 */
+    .nf-code {
+      font-size: clamp(7rem, 22vw, 11rem);
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #06b6d4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.1em;
+      animation: nfCodePulse 4s ease-in-out infinite;
+      position: relative;
+      display: inline-block;
+    }
+    /* Subtle glow shadow */
+    .nf-code::after {
+      content: '404';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: blur(28px);
+      opacity: 0.35;
+      z-index: -1;
+    }
+    @keyframes nfCodePulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.85; }
+    }
+
+    .nf-title {
+      font-size: clamp(1.4rem, 4vw, 1.9rem);
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.02em;
+    }
+
+    .nf-desc {
+      font-size: 1rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 2.25rem;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* Divider line with icon */
+    .nf-divider {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 2.25rem;
+    }
+    .nf-divider::before,
+    .nf-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .nf-divider-icon {
+      font-size: 1.1rem;
+      color: var(--muted2);
+    }
+
+    /* Buttons */
+    .nf-actions {
+      display: flex;
+      gap: 0.875rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .nf-btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.75rem 1.75rem;
+      border-radius: 9px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-decoration: none;
+      transition: background 0.15s, transform 0.1s;
+      border: none;
+      cursor: pointer;
+    }
+    .nf-btn-primary:hover {
+      background: var(--primary2);
+      transform: translateY(-1px);
+    }
+    .nf-btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.75rem 1.75rem;
+      border-radius: 9px;
+      background: var(--card2);
+      color: var(--text);
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid var(--border2);
+      transition: border-color 0.15s, transform 0.1s;
+      cursor: pointer;
+    }
+    .nf-btn-ghost:hover {
+      border-color: var(--blue);
+      color: var(--blue);
+      transform: translateY(-1px);
+    }
+
+    /* Footer note */
+    .nf-footer {
+      position: relative; z-index: 5;
+      padding: 1rem 1.5rem;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--muted2);
+      border-top: 1px solid var(--border);
+    }
+
+    /* Status indicator chip */
+    .nf-status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: 999px;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.25);
+      color: #fca5a5;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 1.5rem;
+    }
+    .nf-status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #ef4444;
+      animation: nfDotBlink 2s ease-in-out infinite;
+    }
+    @keyframes nfDotBlink {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.3; }
+    }
+
+    @media (max-width: 480px) {
+      .nf-actions { gap: 0.6rem; }
+      .nf-btn-primary, .nf-btn-ghost {
+        padding: 0.65rem 1.25rem;
+        font-size: 0.875rem;
+        flex: 1;
+        justify-content: center;
+      }
+      .nf-desc { font-size: 0.9rem; }
+    }
+  </style>
+</head>
+<body class="nf-body">
+
+  <!-- Background decoration -->
+  <div class="nf-grid-deco"></div>
+  <div class="nf-orb nf-orb-1"></div>
+  <div class="nf-orb nf-orb-2"></div>
+  <div class="nf-orb nf-orb-3"></div>
+
+  <!-- Nav -->
+  <nav class="nf-nav">
+    <a href="/" class="nf-logo">
+      <span class="nf-logo-icon">◈</span>
+      <span>MarketLens</span>
+    </a>
+  </nav>
+
+  <!-- Main -->
+  <main class="nf-main">
+    <div class="nf-card">
+
+      <div class="nf-status-chip">
+        <span class="nf-status-dot"></span>
+        Error 404
+      </div>
+
+      <div class="nf-code">404</div>
+
+      <h1 class="nf-title">Page Not Found</h1>
+
+      <p class="nf-desc">
+        The page you're looking for doesn't exist, was moved,
+        or you may have followed a broken link.
+      </p>
+
+      <div class="nf-divider">
+        <span class="nf-divider-icon">◈</span>
+      </div>
+
+      <div class="nf-actions">
+        <a href="/" class="nf-btn-primary">
+          ← Home
+        </a>
+        <a href="/research" class="nf-btn-ghost">
+          Research Dashboard →
+        </a>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="nf-footer">
+    MarketLens · AI-Powered Market Analysis · Not financial advice
+  </footer>
+
+</body>
+</html>
