@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.auth import get_current_user, set_auth_cookie, clear_auth_cookies
 from app.config import (
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM, SITE_URL,
-    SUPABASE_URL,
+    SUPABASE_URL, RESEND_API_KEY, RESEND_FROM,
 )
 from app.db import get_client, get_admin_client
 from app.deps import templates
@@ -30,22 +30,47 @@ router = APIRouter()
 # ── Email helper ──────────────────────────────────────────────────────────────
 
 def _send_email(to: str, subject: str, html: str) -> None:
-    """Send an email via SMTP. Silently skips if SMTP is not configured."""
-    if not (SMTP_HOST and SMTP_USER and SMTP_PASSWORD):
-        return
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"]    = SMTP_FROM or SMTP_USER
-        msg["To"]      = to
-        msg.attach(MIMEText(html, "html"))
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as s:
-            s.ehlo()
-            s.starttls()
-            s.login(SMTP_USER, SMTP_PASSWORD)
-            s.sendmail(SMTP_FROM or SMTP_USER, [to], msg.as_string())
-    except Exception:
-        pass   # Never break registration if email fails
+    """Send email — tries SMTP first, falls back to Resend HTTP API."""
+
+    # ── Attempt 1: SMTP (works on localhost / platforms that allow SMTP) ───────
+    if SMTP_HOST and SMTP_USER and SMTP_PASSWORD:
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"]    = SMTP_FROM or SMTP_USER
+            msg["To"]      = to
+            msg.attach(MIMEText(html, "html"))
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as s:
+                s.ehlo()
+                s.starttls()
+                s.login(SMTP_USER, SMTP_PASSWORD)
+                s.sendmail(SMTP_FROM or SMTP_USER, [to], msg.as_string())
+            return  # sent successfully
+        except Exception:
+            pass    # SMTP blocked (e.g. Render free plan) → try Resend
+
+    # ── Attempt 2: Resend REST API (HTTP — never blocked by hosting platforms) ─
+    if RESEND_API_KEY:
+        try:
+            import urllib.request, json
+            payload = json.dumps({
+                "from":    RESEND_FROM,
+                "to":      [to],
+                "subject": subject,
+                "html":    html,
+            }).encode()
+            req = urllib.request.Request(
+                "https://api.resend.com/emails",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Content-Type":  "application/json",
+                },
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=10)
+        except Exception:
+            pass    # Never break registration if email fails
 
 
 def _generate_password(length: int = 12) -> str:

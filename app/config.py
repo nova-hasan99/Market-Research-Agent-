@@ -30,21 +30,18 @@ SUPABASE_ACCESS_TOKEN = os.getenv("SUPABASE_ACCESS_TOKEN", "")  # Management API
 ADMIN_EMAIL = os.getenv("VITE_ADMIN_EMAIL", "")
 ADMIN_PASS  = os.getenv("VITE_ADMIN_PASSWORD", "")
 
-# ── SMTP ─────────────────────────────────────────────────────────────────────
-# Render free plan blocks outbound SMTP env vars, so we fall back to
-# hardcoded values when the environment variable is missing or empty.
-# To change credentials: update the _FALLBACK_ constants below AND the .env file.
-_SMTP_HOST_FALLBACK     = "smtp.gmail.com"
-_SMTP_PORT_FALLBACK     = 587
-_SMTP_USER_FALLBACK     = "team@latticecode.pro"
-_SMTP_PASSWORD_FALLBACK = "exed dslz xmfo ibxg"
-_SMTP_FROM_FALLBACK     = "MarketLens <team@latticecode.pro>"
+# ── SMTP (primary — works on localhost and platforms that allow SMTP) ─────────
+SMTP_HOST     = os.getenv("SMTP_HOST", "")
+SMTP_PORT     = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER     = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM     = os.getenv("SMTP_FROM", SMTP_USER)
 
-SMTP_HOST     = os.getenv("SMTP_HOST",     "") or _SMTP_HOST_FALLBACK
-SMTP_PORT     = int(os.getenv("SMTP_PORT", "") or _SMTP_PORT_FALLBACK)
-SMTP_USER     = os.getenv("SMTP_USER",     "") or _SMTP_USER_FALLBACK
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "") or _SMTP_PASSWORD_FALLBACK
-SMTP_FROM     = os.getenv("SMTP_FROM",     "") or _SMTP_FROM_FALLBACK
+# ── Resend API (fallback — HTTP-based, works on Render free plan) ─────────────
+# Sign up free at https://resend.com → API Keys → Create Key
+# Add RESEND_API_KEY to Render dashboard environment variables
+RESEND_API_KEY  = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM     = os.getenv("RESEND_FROM", "MarketLens <team@latticecode.pro>")
 SITE_URL      = os.getenv("SITE_URL", "http://localhost:8000")
 
 # ── Correlation & Sentiment ──────────────────────────────────────────────────
