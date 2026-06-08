@@ -459,12 +459,12 @@ def _pkce_pair() -> tuple[str, str]:
 # ── GET /auth/google ──────────────────────────────────────────────────────────
 @router.get("/auth/google")
 async def auth_google(request: Request):
-    """Initiate Google OAuth.
-    Verifier is embedded in redirect_to URL so it survives the cross-domain
-    redirect chain without relying on cookies (which can be lost via SameSite).
+    """Initiate Google OAuth with PKCE.
+    Verifier is stored in BOTH the redirect_to URL param (primary) and a
+    short-lived cookie (fallback) so it survives the cross-domain redirect chain.
     """
     verifier, challenge = _pkce_pair()
-    # Embed verifier directly in callback URL — Supabase preserves query params
+    # Primary: embed verifier in callback URL — Supabase appends &code=... to it
     callback_url = f"{SITE_URL}/auth/callback?cv={verifier}"
     qs = urllib.parse.urlencode({
         "provider":              "google",
@@ -472,7 +472,13 @@ async def auth_google(request: Request):
         "code_challenge":        challenge,
         "code_challenge_method": "S256",
     })
-    return RedirectResponse(f"{SUPABASE_URL}/auth/v1/authorize?{qs}", status_code=302)
+    resp = RedirectResponse(f"{SUPABASE_URL}/auth/v1/authorize?{qs}", status_code=302)
+    # Fallback: also store verifier in a short-lived httponly cookie
+    resp.set_cookie(
+        "pkce_verifier", verifier,
+        httponly=True, samesite="lax", secure=False, max_age=600,
+    )
+    return resp
 
 
 # ── GET /auth/callback ────────────────────────────────────────────────────────
@@ -481,8 +487,13 @@ async def auth_callback(request: Request):
     """Supabase redirects here after Google OAuth with ?code=xxx&cv=<verifier>."""
     from datetime import datetime, timezone
 
-    code          = request.query_params.get("code", "")
-    code_verifier = request.query_params.get("cv",   "")
+    code = request.query_params.get("code", "")
+    # Primary: verifier embedded in the redirect_to URL by /auth/google
+    # Fallback: short-lived cookie set by /auth/google as a backup
+    code_verifier = (
+        request.query_params.get("cv", "")
+        or request.cookies.get("pkce_verifier", "")
+    )
 
     if not code:
         return RedirectResponse("/login?error=OAuth+authentication+failed", status_code=302)
@@ -552,6 +563,7 @@ async def auth_callback(request: Request):
 
         redirect = RedirectResponse("/research", status_code=302)
         set_auth_cookie(redirect, session.access_token, session.refresh_token)
+        redirect.delete_cookie("pkce_verifier")
         return redirect
 
     except Exception as exc:

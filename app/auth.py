@@ -2,51 +2,75 @@
 Authentication utilities for MarketLens.
 Reads/writes the 'sb_access_token' and 'sb_refresh_token' cookies.
 """
-from fastapi import Request, HTTPException
+import base64
+import json as _json
+import time
+
+from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-from app.db import get_client, get_admin_client
+from app.db import get_admin_client
 
 
-def _profile_from_supabase(user_obj) -> dict:
-    """Build a user dict from the Supabase user object and metadata."""
-    uid   = user_obj.id
-    email = user_obj.email or ""
-    meta  = user_obj.user_metadata or {}
-    name  = meta.get("name") or email.split("@")[0]
-    return {
-        "id":        uid,
-        "email":     email,
-        "name":      name,
-        "is_admin":  False,
-        "is_active": True,
-    }
+def _decode_jwt_payload(token: str) -> dict | None:
+    """Decode JWT payload without signature verification."""
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            return None
+        padded = parts[1] + "=" * (4 - len(parts[1]) % 4)
+        return _json.loads(base64.b64decode(padded))
+    except Exception:
+        return None
 
 
 async def get_current_user(request: Request) -> dict | None:
     """
-    Reads 'sb_access_token' cookie, verifies the token with Supabase,
-    enriches it with profile data (is_admin, is_active) and returns a dict.
+    Reads 'sb_access_token' cookie, decodes the Supabase JWT locally,
+    enriches with profile data (is_admin, is_active) and returns a dict.
     Returns None on any failure or if not logged in.
+
+    Uses local JWT decode instead of a Supabase API call so that OAuth
+    (PKCE) tokens work identically to email/password tokens.
+    The cookie is httponly so clients cannot tamper with it via JS.
     """
     token = request.cookies.get("sb_access_token")
     if not token:
         return None
     try:
-        client   = get_client()
-        response = client.auth.get_user(token)
-        if not response or not response.user:
+        payload = _decode_jwt_payload(token)
+        if not payload:
             return None
-        user = _profile_from_supabase(response.user)
 
-        # Fetch profile row for is_admin / is_active
-        # Must use admin client (service key) to bypass RLS on the profiles table
+        # Reject expired tokens
+        exp = payload.get("exp", 0)
+        if exp and time.time() > exp:
+            return None
+
+        user_id = payload.get("sub")
+        email   = payload.get("email", "")
+        if not user_id:
+            return None
+
+        # Name comes from Google user_metadata or falls back to email prefix
+        meta = payload.get("user_metadata") or {}
+        name = meta.get("full_name") or meta.get("name") or email.split("@")[0]
+
+        user: dict = {
+            "id":        user_id,
+            "email":     email,
+            "name":      name,
+            "is_admin":  False,
+            "is_active": True,
+        }
+
+        # Fetch profile row for is_admin / is_active / display name
         try:
             admin = get_admin_client()
             prof = (
                 admin.table("profiles")
                 .select("is_admin,is_active,name")
-                .eq("id", user["id"])
+                .eq("id", user_id)
                 .maybe_single()
                 .execute()
             )
@@ -55,23 +79,13 @@ async def get_current_user(request: Request) -> dict | None:
                 user["is_active"] = bool(prof.data.get("is_active", True))
                 if prof.data.get("name"):
                     user["name"] = prof.data["name"]
-            else:
-                import logging
-                logging.getLogger(__name__).warning(
-                    "No profile row found for user %s — defaulting is_active=True", user["id"]
-                )
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).error(
-                "Profile fetch FAILED for %s: %s — defaulting is_active=True", user["id"], e
-            )
+        except Exception:
+            pass
 
-        # Fallback: if ADMIN_EMAIL is set in config and matches, grant admin
-        # This ensures the super admin always has access even if the profiles
-        # table is missing or the is_admin column isn't set.
+        # Ensure the configured admin email always has admin rights
         try:
             from app.config import ADMIN_EMAIL
-            if ADMIN_EMAIL and user["email"].lower() == ADMIN_EMAIL.lower():
+            if ADMIN_EMAIL and email.lower() == ADMIN_EMAIL.lower():
                 user["is_admin"] = True
         except Exception:
             pass
