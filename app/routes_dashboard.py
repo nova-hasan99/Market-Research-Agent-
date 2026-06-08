@@ -216,85 +216,197 @@ async def export_analyses(
 
 
 def _flat_row(row: dict) -> dict:
-    data = row.get("data") or {}
+    data       = row.get("data") or {}
+    sentiment  = data.get("sentiment") or {}
+    ai_sum     = data.get("ai_summary") or {}
+    ks         = data.get("key_signal") or {}
+    bias_raw   = row.get("bias", "") or data.get("bias", "")
+    bias_label = "Bullish" if bias_raw == "up" else ("Bearish" if bias_raw == "down" else "Unclear")
+    created    = row.get("created_at", "")
+    date_str   = created[:16].replace("T", " ") if created else ""
+    timeframe  = data.get("timeframe_label") or (data.get("timeframe") or "").replace("-", " ").title()
+    key_signal_text = ks.get("text", "") if isinstance(ks, dict) else str(ks or "")
+    vr = data.get("volatility_regime") or ""
+    volatility = vr.get("label", "") if isinstance(vr, dict) else str(vr)
+    try:
+        sent_score = round(float(sentiment.get("score", 0)), 3)
+    except (TypeError, ValueError):
+        sent_score = ""
+
     return {
-        "id":         row.get("id", ""),
-        "asset_type": row.get("asset_type", ""),
-        "asset":      row.get("asset", ""),
-        "score":      row.get("score", ""),
-        "bias":       row.get("bias", ""),
-        "last_price": row.get("last_price", ""),
-        "created_at": row.get("created_at", ""),
-        "ai_summary": (data.get("ai_summary") or {}).get("text", ""),
-        "key_signal": (data.get("key_signal") or {}).get("text", ""),
-        "main_risk":  data.get("main_risk", ""),
+        "date":           date_str,
+        "asset_type":     (row.get("asset_type") or "").title(),
+        "asset":          row.get("asset", "") or data.get("asset", ""),
+        "score":          row.get("score", "") if row.get("score") is not None else data.get("score", ""),
+        "bias":           bias_label,
+        "last_price":     row.get("last_price", "") or data.get("last_price", ""),
+        "timeframe":      timeframe,
+        "volatility":     volatility,
+        "key_signal":     key_signal_text,
+        "main_risk":      data.get("main_risk", ""),
+        "sentiment":      (sentiment.get("label") or "").title(),
+        "sent_score":     sent_score,
+        "news_articles":  sentiment.get("article_count", ""),
+        "ai_summary":     ai_sum.get("text", ""),
+        "ai_provider":    ai_sum.get("provider", ""),
+        "id":             row.get("id", ""),
     }
 
 
+# Column spec: (display header, flat_row key, xlsx column width)
+_EXPORT_COLS = [
+    ("Date / Time",     "date",          20),
+    ("Type",            "asset_type",     8),
+    ("Asset",           "asset",         12),
+    ("Score",           "score",          7),
+    ("Bias",            "bias",          10),
+    ("Last Price",      "last_price",    12),
+    ("Timeframe",       "timeframe",     20),
+    ("Volatility",      "volatility",    20),
+    ("Key Signal",      "key_signal",    42),
+    ("Main Risk",       "main_risk",     42),
+    ("Sentiment",       "sentiment",     12),
+    ("Sent. Score",     "sent_score",    12),
+    ("News Articles",   "news_articles", 13),
+    ("AI Summary",      "ai_summary",    62),
+    ("AI Provider",     "ai_provider",   14),
+    ("ID",              "id",            38),
+]
+
+
 def _export_csv(rows: list) -> StreamingResponse:
+    from datetime import datetime as _dt, timezone as _tz
     output = io.StringIO()
-    fields = ["id", "asset_type", "asset", "score", "bias", "last_price",
-              "created_at", "ai_summary", "key_signal", "main_risk"]
-    writer = csv_mod.DictWriter(output, fieldnames=fields, extrasaction="ignore")
-    writer.writeheader()
+    writer = csv_mod.writer(output)
+    writer.writerow([h for h, _, _ in _EXPORT_COLS])
     for row in rows:
-        writer.writerow(_flat_row(row))
+        flat = _flat_row(row)
+        writer.writerow([flat.get(k, "") for _, k, _ in _EXPORT_COLS])
     output.seek(0)
+    fname = f"marketlens_analyses_{_dt.now(_tz.utc).strftime('%Y%m%d')}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=analyses.csv"},
+        headers={"Content-Disposition": f"attachment; filename={fname}"},
     )
 
 
 def _export_xlsx(rows: list):
     try:
         import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
     except ImportError:
         raise HTTPException(500, "openpyxl not installed")
 
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Analyses"
+    from datetime import datetime as _dt, timezone as _tz
 
-    headers = ["ID", "Type", "Asset", "Score", "Bias", "Last Price",
-               "Date/Time", "AI Summary", "Key Signal", "Main Risk"]
-    keys    = ["id", "asset_type", "asset", "score", "bias", "last_price",
-               "created_at", "ai_summary", "key_signal", "main_risk"]
+    try:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Analyses"
 
-    header_fill = PatternFill("solid", fgColor="0F1923")
-    header_font = Font(bold=True, color="E8EDF5")
+        num_cols = len(_EXPORT_COLS)
+        thin     = Side(style="thin", color="1E2D3D")
+        border   = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    for col_idx, hdr in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=hdr)
-        cell.font      = header_font
-        cell.fill      = header_fill
-        cell.alignment = Alignment(horizontal="center")
+        # ── Row 1: title banner ──────────────────────────────────────────────
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=num_cols)
+        tc = ws.cell(row=1, column=1)
+        now_str  = _dt.now(_tz.utc).strftime("%Y-%m-%d %H:%M")
+        tc.value = f"MarketLens - Analysis Export | {now_str} UTC | {len(rows)} record(s)"
+        tc.font      = Font(bold=True, size=12, color="FF93C5FD", name="Calibri")
+        tc.fill      = PatternFill("solid", fgColor="FF0D1321")
+        tc.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[1].height = 26
 
-    for row_idx, row in enumerate(rows, 2):
-        flat = _flat_row(row)
-        for col_idx, key in enumerate(keys, 1):
-            ws.cell(row=row_idx, column=col_idx, value=flat.get(key, ""))
+        # ── Row 2: column headers ─────────────────────────────────────────────
+        hdr_fill = PatternFill("solid", fgColor="FF1E2D3D")
+        hdr_font = Font(bold=True, color="FF93C5FD", name="Calibri", size=10)
 
-    # Auto-fit column widths
-    for col in ws.columns:
-        max_len = 0
-        for cell in col:
-            try:
-                max_len = max(max_len, len(str(cell.value or "")))
-            except Exception:
-                pass
-        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 60)
+        for ci, (label, _, width) in enumerate(_EXPORT_COLS, 1):
+            cell = ws.cell(row=2, column=ci, value=label)
+            cell.font      = hdr_font
+            cell.fill      = hdr_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border    = border
+            ws.column_dimensions[get_column_letter(ci)].width = width
+        ws.row_dimensions[2].height = 22
 
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return StreamingResponse(
-        buf,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=analyses.xlsx"},
-    )
+        # ── Data rows ─────────────────────────────────────────────────────────
+        fill_odd  = PatternFill("solid", fgColor="FF0F1923")
+        fill_even = PatternFill("solid", fgColor="FF111827")
+        text_font = Font(name="Calibri", size=10, color="FFD1D5DB")
+        wrap_font = Font(name="Calibri", size=9,  color="FFD1D5DB")
+
+        score_styles = {
+            "high": ("FF065F46", "FF34D399"),
+            "mid":  ("FF78350F", "FFFCD34D"),
+            "low":  ("FF7F1D1D", "FFF87171"),
+        }
+        bias_styles = {
+            "Bullish": ("FF064E3B", "FF6EE7B7"),
+            "Bearish": ("FF7F1D1D", "FFFCA5A5"),
+            "Unclear": ("FF1F2937", "FF9CA3AF"),
+        }
+
+        for ri, row in enumerate(rows, 3):
+            flat      = _flat_row(row)
+            base_fill = fill_odd if ri % 2 == 1 else fill_even
+
+            for ci, (_, key, _) in enumerate(_EXPORT_COLS, 1):
+                val = flat.get(key, "")
+                if isinstance(val, (dict, list)):
+                    val = str(val)
+                cell = ws.cell(row=ri, column=ci, value=val)
+                cell.border = border
+
+                if key == "score":
+                    try:
+                        s = int(float(val))
+                    except (TypeError, ValueError):
+                        s = 0
+                    style = "high" if s >= 70 else ("mid" if s >= 50 else "low")
+                    bg, fg = score_styles[style]
+                    cell.fill      = PatternFill("solid", fgColor=bg)
+                    cell.font      = Font(bold=True, color=fg, name="Calibri", size=10)
+                    cell.alignment = Alignment(horizontal="center", vertical="top")
+
+                elif key == "bias":
+                    bg, fg = bias_styles.get(str(val), ("FF1F2937", "FF9CA3AF"))
+                    cell.fill      = PatternFill("solid", fgColor=bg)
+                    cell.font      = Font(bold=True, color=fg, name="Calibri", size=10)
+                    cell.alignment = Alignment(horizontal="center", vertical="top")
+
+                elif key in ("ai_summary", "key_signal", "main_risk"):
+                    cell.fill      = base_fill
+                    cell.font      = wrap_font
+                    cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+                else:
+                    cell.fill      = base_fill
+                    cell.font      = text_font
+                    cell.alignment = Alignment(horizontal="left", vertical="top")
+
+            summary_len = len(str(flat.get("ai_summary", "")))
+            ws.row_dimensions[ri].height = max(15, min(int(summary_len / 55) * 14 + 15, 140))
+
+        # ── Freeze header + auto-filter ────────────────────────────────────────
+        ws.freeze_panes = "A3"
+        ws.auto_filter.ref = f"A2:{get_column_letter(num_cols)}2"
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        fname = f"marketlens_analyses_{_dt.now(_tz.utc).strftime('%Y%m%d')}.xlsx"
+        return StreamingResponse(
+            buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={fname}"},
+        )
+
+    except Exception as exc:
+        raise HTTPException(500, f"XLSX generation failed: {exc}") from exc
 
 
 # ─── Admin: GET /api/admin/users ──────────────────────────────────────────────

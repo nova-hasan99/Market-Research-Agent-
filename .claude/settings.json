@@ -89,7 +89,11 @@
       "Bash(python -m py_compile app/routes_auth.py)",
       "Bash(python -m py_compile main.py)",
       "Bash(python -m py_compile templates/404.html)",
-      "Bash(python -m py_compile static/css/dashboard.css)"
+      "Bash(python -m py_compile static/css/dashboard.css)",
+      "Bash(python -c \"from app.routes_dashboard import _flat_row, _export_csv, _export_xlsx, _EXPORT_COLS; print\\('OK — columns:', [h for h,_,_ in _EXPORT_COLS]\\)\")",
+      "Bash(python test_export.py)",
+      "Bash(del test_export.py test_export_out.xlsx)",
+      "Bash(python test_xlsx2.py)"
     ]
   }
 }

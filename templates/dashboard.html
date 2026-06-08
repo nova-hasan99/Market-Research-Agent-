@@ -121,8 +121,15 @@
             </td>
             <td class="col-price">{{ a.last_price or '-' }}</td>
             <td class="col-actions">
-              <button class="tb-btn tb-view" onclick="viewAnalysis('{{ a.id }}','{{ a.asset }}',{{ a.score if a.score is not none else 0 }})">View</button>
-              <button class="tb-btn tb-delete" onclick="deleteOneAnalysis('{{ a.id }}')">Delete</button>
+              <button class="tb-btn tb-view act-desk" onclick="viewAnalysis('{{ a.id }}','{{ a.asset }}',{{ a.score if a.score is not none else 0 }})">View</button>
+              <button class="tb-btn tb-delete act-desk" onclick="deleteOneAnalysis('{{ a.id }}')">Delete</button>
+              <div class="act-mob">
+                <button class="dot-btn" onclick="toggleDotMenu(this)">&#8942;</button>
+                <div class="dot-drop hidden">
+                  <div class="dot-item" onclick="closeDotMenus();viewAnalysis('{{ a.id }}','{{ a.asset }}',{{ a.score if a.score is not none else 0 }})">View</div>
+                  <div class="dot-item dot-item-del" onclick="closeDotMenus();deleteOneAnalysis('{{ a.id }}')">Delete</div>
+                </div>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -166,8 +173,15 @@
             </td>
             <td class="col-price">{{ a.last_price or '-' }}</td>
             <td class="col-actions">
-              <button class="tb-btn tb-view" onclick="viewAnalysis('{{ a.id }}','{{ a.asset }}',{{ a.score if a.score is not none else 0 }})">View</button>
-              <button class="tb-btn tb-delete" onclick="deleteOneAnalysis('{{ a.id }}')">Delete</button>
+              <button class="tb-btn tb-view act-desk" onclick="viewAnalysis('{{ a.id }}','{{ a.asset }}',{{ a.score if a.score is not none else 0 }})">View</button>
+              <button class="tb-btn tb-delete act-desk" onclick="deleteOneAnalysis('{{ a.id }}')">Delete</button>
+              <div class="act-mob">
+                <button class="dot-btn" onclick="toggleDotMenu(this)">&#8942;</button>
+                <div class="dot-drop hidden">
+                  <div class="dot-item" onclick="closeDotMenus();viewAnalysis('{{ a.id }}','{{ a.asset }}',{{ a.score if a.score is not none else 0 }})">View</div>
+                  <div class="dot-item dot-item-del" onclick="closeDotMenus();deleteOneAnalysis('{{ a.id }}')">Delete</div>
+                </div>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -264,14 +278,36 @@
     document.body.style.overflow = '';
   }
 
-  // Close menu when clicking outside
+  // Close nav menu when clicking outside
   document.addEventListener('click', function(e) {
     const menu = document.getElementById('nav-mobile');
     const btn = document.querySelector('.hamburger-btn');
     if (menu && menu.classList.contains('active') && !menu.contains(e.target) && !btn.contains(e.target)) {
       closeMobileNav();
     }
+    // Close any open 3-dot menus when clicking outside
+    if (!e.target.closest('.act-mob')) {
+      closeDotMenus();
+    }
   });
+
+  function toggleDotMenu(btn) {
+    const drop = btn.nextElementSibling;
+    const isOpen = !drop.classList.contains('hidden');
+    closeDotMenus();
+    if (!isOpen) {
+      const r = btn.getBoundingClientRect();
+      drop.style.top  = (r.bottom + 4) + 'px';
+      drop.style.left = Math.max(8, r.right - 140) + 'px';
+      drop.classList.remove('hidden');
+    }
+  }
+
+  function closeDotMenus() {
+    document.querySelectorAll('.dot-drop:not(.hidden)').forEach(function(d) {
+      d.classList.add('hidden');
+    });
+  }
 
   // Auto-convert UTC timestamps to browser local timezone
   (function() {

@@ -523,103 +523,149 @@
   .admin-search-input { width: 160px; }
 }
 
+/* ─── 3-dot menu (desktop: hidden) ──────────────────────────────────────── */
+.act-mob { display: none; }
+
 /* ─── Responsive ─────────────────────────────────────────────────────────── */
+
+/* Tablet — compare modal stacks vertically */
 @media (max-width: 900px) {
-  /* Stack the two compare iframes vertically and let the box scroll */
+  .db-main { padding: 1.25rem 1rem; }
   .compare-grid {
     grid-template-columns: 1fr;
     grid-auto-rows: 70vh;
     overflow-y: auto;
   }
-  .compare-panel {
-    min-height: 70vh;
-  }
+  .compare-panel { min-height: 70vh; }
   .compare-panel:first-child {
     border-right: none;
     border-bottom: 1px solid var(--border);
   }
 }
 
+/* Mobile (≤ 640px) */
 @media (max-width: 640px) {
   .db-main { padding: 1rem 0.75rem; }
-  .db-toolbar { flex-direction: column; align-items: flex-start; }
-  .toolbar-right { margin-left: 0; }
-  .db-table { font-size: 0.8rem; }
-  .db-table thead th { padding: 0.55rem 0.5rem; font-size: 0.7rem; }
-  .db-table tbody td { padding: 0.5rem 0.5rem; }
-  .col-date { display: none; }
-  .modal-overlay { padding: 0.75rem; }
-  .modal-box { border-radius: 10px; }
-}
 
-/* ─── Mobile Responsive Improvements ────────────────────────────────────── */
+  /* Banner */
+  .auto-delete-banner { font-size: 0.79rem; padding: 0.5rem 0.875rem; }
 
-/* Tablet (641px – 900px): already handled above. Extra polish: */
-@media (max-width: 900px) {
-  .db-main { padding: 1.25rem 1rem; }
-}
+  /* Tab bar — equal-width tabs */
+  .db-tab { flex: 1; text-align: center; padding: 0.55rem 0.5rem; font-size: 0.85rem; }
 
-/* Small tablet / large phone (481px – 640px) */
-@media (max-width: 640px) {
-  /* Tab bar — equal-width buttons */
-  .db-tab { flex: 1; text-align: center; padding: 0.55rem 0.75rem; }
+  /* ── Toolbar: hidden on mobile (no checkboxes = no bulk select) ── */
+  .db-toolbar { display: none !important; }
 
-  /* Toolbar — stack vertically, full width */
-  .db-toolbar { flex-direction: column; align-items: stretch; gap: 0.5rem; }
-  .toolbar-count { align-self: flex-start; }
-  .toolbar-actions { flex-wrap: wrap; }
-  .toolbar-right { margin-left: 0; }
+  /* ── Table: card-style rows ── */
+  .db-panel  { overflow: visible; border-radius: 12px; }
 
-  /* Table panel — allow horizontal scroll on small screens */
-  .db-panel { overflow-x: auto; border-radius: 12px; }
-
-  /* Table cells */
-  .db-table { font-size: 0.8rem; min-width: 380px; }
-  .db-table thead th { padding: 0.55rem 0.5rem; font-size: 0.7rem; }
-  .db-table tbody td { padding: 0.5rem 0.5rem; }
-
-  /* Hide checkbox + date columns — less critical on mobile */
-  .col-check, .col-date { display: none; }
-
-  /* Action buttons — bigger tap targets */
-  .col-actions { text-align: left; white-space: nowrap; }
-  .tb-btn.tb-view, .tb-btn.tb-delete {
-    padding: 0.38rem 0.7rem;
-    font-size: 0.8rem;
+  .db-table          { display: block; width: 100%; font-size: 0.85rem; }
+  .db-table thead    { display: none; }
+  .db-table tbody    { display: flex; flex-direction: column; gap: 0; }
+  .db-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    align-items: center;
+    gap: 0 0.5rem;
+    padding: 0.65rem 0.875rem;
+    border-bottom: 1px solid var(--border);
   }
+  .db-table tbody tr:last-child { border-bottom: none; }
+  .db-table tbody tr:hover      { background: rgba(59,130,246,0.04); }
+
+  /* All td's become flex items */
+  .db-table tbody td {
+    display: flex;
+    align-items: center;
+    padding: 0;
+    border: none;
+  }
+
+  /* !! Higher specificity to truly hide these grid columns !! */
+  .db-table tbody td.col-check,
+  .db-table tbody td.col-date,
+  .db-table tbody td.col-price { display: none !important; }
+
+  /* Asset (1fr) */
+  .col-asset { min-width: 0; }
+  .col-asset strong { font-size: 0.9rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Score + Bias */
+  .col-score { justify-content: center; }
+  .col-bias  { justify-content: center; min-width: 58px; }
+  .bias-mini { font-size: 0.78rem; }
+
+  /* Actions cell — show only the 3-dot menu */
+  .col-actions { justify-content: flex-end; }
+  .act-desk    { display: none !important; }
+  .act-mob     { display: block; }
+
+  /* 3-dot button */
+  .dot-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    font-family: inherit;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .dot-btn:hover { border-color: var(--blue); color: var(--blue); background: rgba(59,130,246,0.08); }
+
+  /* Dropdown — positioned via JS with position:fixed */
+  .dot-drop {
+    position: fixed;
+    background: var(--card2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    box-shadow: 0 10px 32px rgba(0,0,0,0.6);
+    z-index: 600;
+    min-width: 140px;
+    overflow: hidden;
+  }
+  .dot-item {
+    padding: 0.65rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+    white-space: nowrap;
+  }
+  .dot-item:last-child { border-bottom: none; }
+  .dot-item:hover      { background: rgba(59,130,246,0.1); }
+  .dot-item-del        { color: #f87171; }
+  .dot-item-del:hover  { background: rgba(239,68,68,0.08); color: #fca5a5; }
+
+  /* Empty row */
+  .empty-row { display: block !important; text-align: center; padding: 2rem 1rem !important; grid-column: 1 / -1; }
 
   /* Modals */
   .modal-overlay { padding: 0.5rem; }
-  .modal-box { border-radius: 10px; height: calc(100vh - 1rem); }
-  .modal-header { padding: 0.875rem 1rem; }
-
-  /* Toast */
-  .db-toast { bottom: 1rem; right: 1rem; left: 1rem; max-width: none; }
+  .modal-box     { border-radius: 10px; height: calc(100vh - 1rem); }
+  .modal-header  { padding: 0.875rem 1rem; }
+  .db-toast      { bottom: 1rem; right: 1rem; left: 1rem; max-width: none; }
 }
 
-/* Small phone (≤ 480px) */
+/* Small phones (≤ 480px) */
 @media (max-width: 480px) {
-  .db-main { padding: 0.875rem 0.75rem; }
-
-  /* Tab bar full width */
-  .db-tab-bar { gap: 0.35rem; }
-  .db-tab { font-size: 0.84rem; }
-
-  /* Hide price column too */
-  .col-price { display: none; }
-
-  /* Table minimum width can shrink further */
-  .db-table { min-width: 300px; }
-
-  /* Full-screen modal on very small screens */
+  /* Full-screen view modal */
   .modal-overlay { padding: 0; }
   .modal-box {
     height: 100dvh;
     max-width: 100%;
     border-radius: 0;
-    border-left: none;
-    border-right: none;
-    border-bottom: none;
+    border: none;
   }
 
   /* Full-screen compare modal */
@@ -641,16 +687,9 @@
 
   /* Confirm modal */
   .confirm-box { padding: 1.25rem; }
-  .confirm-title { font-size: 1rem; }
 
-  /* Banner */
-  .auto-delete-banner { font-size: 0.78rem; padding: 0.5rem 0.75rem; }
-
-  /* Action buttons stack vertically inside col */
-  .col-actions { display: flex; flex-direction: column; gap: 0.3rem; align-items: flex-start; }
-
-  /* Admin stats always 2-column on small phones */
-  .admin-stats-row { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Admin panel */
+  .admin-stats-row  { grid-template-columns: repeat(2, 1fr) !important; }
   .admin-search-input { width: 100%; }
   .admin-header-row { flex-direction: column; align-items: stretch; }
 }
