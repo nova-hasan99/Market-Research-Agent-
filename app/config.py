@@ -30,12 +30,21 @@ SUPABASE_ACCESS_TOKEN = os.getenv("SUPABASE_ACCESS_TOKEN", "")  # Management API
 ADMIN_EMAIL = os.getenv("VITE_ADMIN_EMAIL", "")
 ADMIN_PASS  = os.getenv("VITE_ADMIN_PASSWORD", "")
 
-# ── SMTP (optional — for welcome emails) ─────────────────────────────────────
-SMTP_HOST     = os.getenv("SMTP_HOST", "")
-SMTP_PORT     = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER     = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-SMTP_FROM     = os.getenv("SMTP_FROM", SMTP_USER)
+# ── SMTP ─────────────────────────────────────────────────────────────────────
+# Render free plan blocks outbound SMTP env vars, so we fall back to
+# hardcoded values when the environment variable is missing or empty.
+# To change credentials: update the _FALLBACK_ constants below AND the .env file.
+_SMTP_HOST_FALLBACK     = "smtp.gmail.com"
+_SMTP_PORT_FALLBACK     = 587
+_SMTP_USER_FALLBACK     = "team@latticecode.pro"
+_SMTP_PASSWORD_FALLBACK = "exed dslz xmfo ibxg"
+_SMTP_FROM_FALLBACK     = "MarketLens <team@latticecode.pro>"
+
+SMTP_HOST     = os.getenv("SMTP_HOST",     "") or _SMTP_HOST_FALLBACK
+SMTP_PORT     = int(os.getenv("SMTP_PORT", "") or _SMTP_PORT_FALLBACK)
+SMTP_USER     = os.getenv("SMTP_USER",     "") or _SMTP_USER_FALLBACK
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "") or _SMTP_PASSWORD_FALLBACK
+SMTP_FROM     = os.getenv("SMTP_FROM",     "") or _SMTP_FROM_FALLBACK
 SITE_URL      = os.getenv("SITE_URL", "http://localhost:8000")
 
 # ── Correlation & Sentiment ──────────────────────────────────────────────────
