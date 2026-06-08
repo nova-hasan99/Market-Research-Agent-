@@ -76,151 +76,149 @@ def _generate_password(length: int = 12) -> str:
 
 
 def _base_email(name: str, email: str, password: str, via_google: bool) -> str:
-    google_note = """
-      <p style="margin:0 0 20px;font-size:14px;color:#94a3b8;line-height:1.6">
-        You signed up via <strong style="color:#e2e8f0">Google</strong>.
-        We also set up an email&nbsp;+&nbsp;password login so you can always access your account:
-      </p>""" if via_google else """
-      <p style="margin:0 0 20px;font-size:14px;color:#94a3b8;line-height:1.6">
-        Your account is ready. Save your login details below — you'll need them to sign in.
-      </p>"""
+    google_note = (
+        "<p style='margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.7'>"
+        "You signed up via <strong style='color:#111827'>Google</strong>. "
+        "We also created an email&nbsp;+&nbsp;password login so you can always access your account:"
+        "</p>"
+    ) if via_google else (
+        "<p style='margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.7'>"
+        "Your account is active. Save your login details below &mdash; you'll need them every time you sign in."
+        "</p>"
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#0f172a;font-family:'Segoe UI',Inter,Arial,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:40px 16px">
-  <tr><td align="center">
-  <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%">
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',Inter,Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:40px 16px">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
 
-    <!-- HEADER -->
-    <tr><td style="background:#1e293b;border-radius:16px 16px 0 0;padding:28px 36px;
-                   border-bottom:1px solid #334155">
-      <table width="100%" cellpadding="0" cellspacing="0"><tr>
-        <td>
-          <span style="display:inline-block;background:#3b82f6;border-radius:8px;
-                       padding:6px 10px;font-size:18px;font-weight:800;
-                       color:#fff;letter-spacing:-0.5px">&#9670;</span>
-          <span style="font-size:18px;font-weight:700;color:#f1f5f9;
-                       vertical-align:middle;margin-left:10px">MarketLens</span>
-        </td>
-        <td align="right">
-          <span style="font-size:12px;color:#64748b">AI Market Analysis</span>
-        </td>
-      </tr></table>
-    </td></tr>
-
-    <!-- HERO -->
-    <tr><td style="background:#1e293b;padding:36px 36px 24px">
-      <h1 style="margin:0 0 8px;font-size:26px;font-weight:800;color:#f1f5f9;line-height:1.2">
-        Welcome aboard, {name}!
-      </h1>
-      <p style="margin:0 0 24px;font-size:15px;color:#64748b">
-        Your MarketLens account is active and ready to use.
-      </p>
-      {google_note}
-    </td></tr>
-
-    <!-- CREDENTIALS CARD -->
-    <tr><td style="background:#1e293b;padding:0 36px 28px">
-      <table width="100%" cellpadding="0" cellspacing="0"
-             style="background:#0f172a;border-radius:12px;border:1px solid #334155;overflow:hidden">
-        <tr><td colspan="2" style="padding:14px 20px;background:#1d4ed8;
-                                    border-radius:12px 12px 0 0">
-          <span style="font-size:13px;font-weight:700;color:#fff;
-                       text-transform:uppercase;letter-spacing:0.08em">&#128274; Login Details</span>
-        </td></tr>
-        <tr>
-          <td style="padding:14px 20px;color:#64748b;font-size:12px;font-weight:600;
-                     text-transform:uppercase;letter-spacing:0.06em;width:110px;
-                     border-bottom:1px solid #1e293b">Email</td>
-          <td style="padding:14px 20px;color:#e2e8f0;font-size:14px;
-                     border-bottom:1px solid #1e293b">{email}</td>
-        </tr>
-        <tr>
-          <td style="padding:14px 20px;color:#64748b;font-size:12px;font-weight:600;
-                     text-transform:uppercase;letter-spacing:0.06em">Password</td>
-          <td style="padding:14px 20px;color:#38bdf8;font-size:14px;
-                     font-family:'Courier New',monospace;font-weight:700;
-                     letter-spacing:0.05em">{password}</td>
-        </tr>
-      </table>
-      <p style="margin:12px 0 0;font-size:12px;color:#475569;line-height:1.5">
-        &#128274;&nbsp;Keep this email private. You can change your password anytime via
-        <a href="{SITE_URL}/forgot-password" style="color:#3b82f6;text-decoration:none">Forgot Password</a>.
-      </p>
-    </td></tr>
-
-    <!-- FEATURES -->
-    <tr><td style="background:#1e293b;padding:0 36px 28px">
-      <p style="margin:0 0 14px;font-size:13px;font-weight:700;color:#64748b;
-                text-transform:uppercase;letter-spacing:0.08em">What you can do</p>
-      <table width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-          <td width="50%" style="padding:0 8px 10px 0;vertical-align:top">
-            <div style="background:#0f172a;border-radius:10px;padding:14px 16px;
-                        border:1px solid #1e3a5f">
-              <div style="font-size:18px;margin-bottom:6px">&#128200;</div>
-              <div style="font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:4px">Live Market Analysis</div>
-              <div style="font-size:12px;color:#64748b">Real-time signals for Forex, Stocks &amp; Crypto</div>
-            </div>
-          </td>
-          <td width="50%" style="padding:0 0 10px 8px;vertical-align:top">
-            <div style="background:#0f172a;border-radius:10px;padding:14px 16px;
-                        border:1px solid #1e3a5f">
-              <div style="font-size:18px;margin-bottom:6px">&#129302;</div>
-              <div style="font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:4px">AI Trade Guidance</div>
-              <div style="font-size:12px;color:#64748b">Stop loss, take profit &amp; confidence score</div>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td width="50%" style="padding:0 8px 0 0;vertical-align:top">
-            <div style="background:#0f172a;border-radius:10px;padding:14px 16px;
-                        border:1px solid #1e3a5f">
-              <div style="font-size:18px;margin-bottom:6px">&#128240;</div>
-              <div style="font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:4px">News Sentiment</div>
-              <div style="font-size:12px;color:#64748b">Market-moving news with sentiment scoring</div>
-            </div>
-          </td>
-          <td width="50%" style="padding:0 0 0 8px;vertical-align:top">
-            <div style="background:#0f172a;border-radius:10px;padding:14px 16px;
-                        border:1px solid #1e3a5f">
-              <div style="font-size:18px;margin-bottom:6px">&#128337;</div>
-              <div style="font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:4px">Multi-Timeframe</div>
-              <div style="font-size:12px;color:#64748b">1H · 4H · 8H · Daily analysis in one view</div>
-            </div>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-
-    <!-- CTA -->
-    <tr><td style="background:#1e293b;padding:0 36px 36px;text-align:center">
-      <a href="{SITE_URL}/research"
-         style="display:inline-block;padding:14px 40px;background:linear-gradient(135deg,#2563eb,#3b82f6);
-                color:#fff;text-decoration:none;border-radius:10px;font-size:15px;
-                font-weight:700;letter-spacing:0.02em;box-shadow:0 4px 14px rgba(59,130,246,0.4)">
-        Start Analyzing Markets &#8594;
-      </a>
-    </td></tr>
-
-    <!-- FOOTER -->
-    <tr><td style="background:#0f172a;border-radius:0 0 16px 16px;padding:20px 36px;
-                   border-top:1px solid #1e293b;text-align:center">
-      <p style="margin:0 0 6px;font-size:12px;color:#334155">
-        &copy; 2025 MarketLens &mdash; AI-Powered Market Analysis
-      </p>
-      <p style="margin:0;font-size:12px;color:#334155">
-        This email was sent to <span style="color:#475569">{email}</span> because you created an account.
-      </p>
-      <p style="margin:8px 0 0;font-size:11px;color:#1e293b">
-        Not financial advice. Always manage your risk.
-      </p>
-    </td></tr>
-
-  </table>
+  <!-- HEADER -->
+  <tr><td style="background:#1d4ed8;border-radius:14px 14px 0 0;padding:24px 36px">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td>
+        <span style="display:inline-block;background:rgba(255,255,255,0.2);border-radius:8px;
+                     padding:5px 10px;font-size:17px;font-weight:800;color:#fff">&#9670;</span>
+        <span style="font-size:18px;font-weight:700;color:#fff;vertical-align:middle;margin-left:10px">
+          MarketLens
+        </span>
+      </td>
+      <td align="right">
+        <span style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:500">AI Market Analysis</span>
+      </td>
+    </tr></table>
   </td></tr>
+
+  <!-- HERO -->
+  <tr><td style="background:#ffffff;padding:36px 36px 28px">
+    <h1 style="margin:0 0 10px;font-size:26px;font-weight:800;color:#111827;line-height:1.25">
+      Welcome aboard, {name}! &#127881;
+    </h1>
+    <p style="margin:0 0 6px;font-size:15px;color:#6b7280">Your MarketLens account is ready to use.</p>
+    <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+    {google_note}
+  </td></tr>
+
+  <!-- CREDENTIALS CARD -->
+  <tr><td style="background:#ffffff;padding:0 36px 32px">
+    <table width="100%" cellpadding="0" cellspacing="0"
+           style="border-radius:10px;border:1px solid #e5e7eb;overflow:hidden">
+      <tr><td colspan="2"
+              style="background:#1d4ed8;padding:12px 20px">
+        <span style="font-size:12px;font-weight:700;color:#fff;
+                     text-transform:uppercase;letter-spacing:0.08em">&#128274;&nbsp; Your Login Details</span>
+      </td></tr>
+      <tr style="background:#f9fafb">
+        <td style="padding:14px 20px;font-size:12px;font-weight:700;color:#6b7280;
+                   text-transform:uppercase;letter-spacing:0.06em;width:100px;
+                   border-bottom:1px solid #e5e7eb">Email</td>
+        <td style="padding:14px 20px;font-size:14px;color:#111827;
+                   border-bottom:1px solid #e5e7eb">{email}</td>
+      </tr>
+      <tr style="background:#ffffff">
+        <td style="padding:14px 20px;font-size:12px;font-weight:700;color:#6b7280;
+                   text-transform:uppercase;letter-spacing:0.06em">Password</td>
+        <td style="padding:14px 20px;font-size:15px;color:#1d4ed8;
+                   font-family:'Courier New',monospace;font-weight:700;
+                   letter-spacing:0.06em">{password}</td>
+      </tr>
+    </table>
+    <p style="margin:12px 0 0;font-size:13px;color:#9ca3af;line-height:1.6">
+      Keep this email safe. Change your password anytime via
+      <a href="{SITE_URL}/forgot-password" style="color:#1d4ed8;text-decoration:none;font-weight:600">Forgot Password</a>.
+    </p>
+  </td></tr>
+
+  <!-- DIVIDER -->
+  <tr><td style="background:#ffffff;padding:0 36px">
+    <hr style="border:none;border-top:1px solid #e5e7eb;margin:0">
+  </td></tr>
+
+  <!-- FEATURES -->
+  <tr><td style="background:#ffffff;padding:28px 36px">
+    <p style="margin:0 0 18px;font-size:12px;font-weight:700;color:#9ca3af;
+              text-transform:uppercase;letter-spacing:0.1em">What you can do</p>
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td width="50%" style="padding:0 6px 12px 0;vertical-align:top">
+          <div style="background:#f0f9ff;border-radius:10px;padding:16px;border:1px solid #bae6fd">
+            <div style="font-size:20px;margin-bottom:8px">&#128200;</div>
+            <div style="font-size:13px;font-weight:700;color:#0c4a6e;margin-bottom:4px">Live Market Analysis</div>
+            <div style="font-size:12px;color:#0369a1;line-height:1.5">Real-time signals for Forex, Stocks &amp; Crypto</div>
+          </div>
+        </td>
+        <td width="50%" style="padding:0 0 12px 6px;vertical-align:top">
+          <div style="background:#f0fdf4;border-radius:10px;padding:16px;border:1px solid #bbf7d0">
+            <div style="font-size:20px;margin-bottom:8px">&#129302;</div>
+            <div style="font-size:13px;font-weight:700;color:#14532d;margin-bottom:4px">AI Trade Guidance</div>
+            <div style="font-size:12px;color:#15803d;line-height:1.5">Stop loss, take profit &amp; confidence score</div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td width="50%" style="padding:0 6px 0 0;vertical-align:top">
+          <div style="background:#fff7ed;border-radius:10px;padding:16px;border:1px solid #fed7aa">
+            <div style="font-size:20px;margin-bottom:8px">&#128240;</div>
+            <div style="font-size:13px;font-weight:700;color:#7c2d12;margin-bottom:4px">News Sentiment</div>
+            <div style="font-size:12px;color:#c2410c;line-height:1.5">Market-moving news with sentiment scoring</div>
+          </div>
+        </td>
+        <td width="50%" style="padding:0 0 0 6px;vertical-align:top">
+          <div style="background:#faf5ff;border-radius:10px;padding:16px;border:1px solid #e9d5ff">
+            <div style="font-size:20px;margin-bottom:8px">&#128337;</div>
+            <div style="font-size:13px;font-weight:700;color:#581c87;margin-bottom:4px">Multi-Timeframe</div>
+            <div style="font-size:12px;color:#7e22ce;line-height:1.5">1H · 4H · 8H · Daily analysis in one view</div>
+          </div>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <!-- CTA -->
+  <tr><td style="background:#ffffff;border-radius:0 0 14px 14px;padding:0 36px 40px;text-align:center">
+    <a href="{SITE_URL}/research"
+       style="display:inline-block;padding:15px 44px;background:#1d4ed8;
+              color:#fff;text-decoration:none;border-radius:10px;font-size:15px;
+              font-weight:700;letter-spacing:0.02em">
+      Start Analyzing Markets &#8594;
+    </a>
+  </td></tr>
+
+  <!-- FOOTER -->
+  <tr><td style="padding:24px 36px;text-align:center">
+    <p style="margin:0 0 6px;font-size:12px;color:#9ca3af">
+      &copy; 2025 MarketLens &mdash; AI-Powered Market Analysis
+    </p>
+    <p style="margin:0 0 6px;font-size:12px;color:#d1d5db">
+      Sent to <span style="color:#6b7280">{email}</span> because you created an account.
+    </p>
+    <p style="margin:0;font-size:11px;color:#d1d5db">Not financial advice. Always manage your risk.</p>
+  </td></tr>
+
+</table>
+</td></tr>
 </table>
 </body></html>"""
 
