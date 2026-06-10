@@ -10,7 +10,11 @@ from typing import Optional
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
-from app.auth import get_current_user, require_user, require_admin
+from app.auth import (
+    get_current_user,
+    require_user, require_admin,
+    require_user_api, require_admin_api,
+)
 from app.db import get_admin_client
 from app.deps import templates
 
@@ -77,7 +81,11 @@ async def admin_users_page(request: Request):
 # ─── GET /dashboard/view/{id} — full-page analysis viewer ────────────────────
 @router.get("/dashboard/view/{analysis_id}", response_class=HTMLResponse)
 async def view_analysis_page(request: Request, analysis_id: str):
-    user = await require_user(request)
+    from fastapi.responses import RedirectResponse
+    result = await require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    user = result
     client = _admin_client()
     result = (
         client.table("analyses")
@@ -103,7 +111,7 @@ async def view_analysis_page(request: Request, analysis_id: str):
 # ─── GET /dashboard/analysis/{id} — JSON API for JS ──────────────────────────
 @router.get("/dashboard/analysis/{analysis_id}")
 async def get_analysis(request: Request, analysis_id: str):
-    user = await require_user(request)
+    user = await require_user_api(request)
     client = _admin_client()
 
     result = (
@@ -127,7 +135,7 @@ async def get_analysis(request: Request, analysis_id: str):
 # ─── POST /api/dashboard/save ─────────────────────────────────────────────────
 @router.post("/api/dashboard/save")
 async def save_analysis(request: Request):
-    user = await require_user(request)
+    user = await require_user_api(request)
     body = await request.json()
 
     client = _admin_client()
@@ -152,7 +160,7 @@ async def save_analysis(request: Request):
 # ─── DELETE /api/dashboard/analyses/{id} ──────────────────────────────────────
 @router.delete("/api/dashboard/analyses/{analysis_id}")
 async def delete_analysis(request: Request, analysis_id: str):
-    user = await require_user(request)
+    user = await require_user_api(request)
     client = _admin_client()
 
     row = (
@@ -174,7 +182,7 @@ async def delete_analysis(request: Request, analysis_id: str):
 # ─── DELETE /api/dashboard/analyses (bulk) ────────────────────────────────────
 @router.delete("/api/dashboard/analyses")
 async def delete_analyses_bulk(request: Request):
-    user = await require_user(request)
+    user = await require_user_api(request)
     body = await request.json()
     ids  = body.get("ids", [])
     if not ids:
@@ -197,7 +205,7 @@ async def export_analyses(
     ids:        Optional[str] = None,
     asset_type: Optional[str] = None,
 ):
-    user = await require_user(request)
+    user = await require_user_api(request)
     client = _admin_client()
 
     q = client.table("analyses").select("*").eq("user_id", user["id"])
@@ -412,7 +420,7 @@ def _export_xlsx(rows: list):
 # ─── Admin: GET /api/admin/users ──────────────────────────────────────────────
 @router.get("/api/admin/users")
 async def admin_get_users(request: Request):
-    await require_admin(request)
+    await require_admin_api(request)
     client = _admin_client()
 
     profiles = (
@@ -496,7 +504,7 @@ def _get_user_profile(uid: str) -> dict:
 # ─── Admin: POST /api/admin/users/{uid}/deactivate ───────────────────────────
 @router.post("/api/admin/users/{uid}/deactivate")
 async def admin_deactivate_user(request: Request, uid: str):
-    await require_admin(request)
+    await require_admin_api(request)
     client = _admin_client()
     client.table("profiles").update({"is_active": False}).eq("id", uid).execute()
     # Note: Not banning in Supabase Auth — allows user to still login but cannot analyze
@@ -516,7 +524,7 @@ async def admin_deactivate_user(request: Request, uid: str):
 # ─── Admin: POST /api/admin/users/{uid}/activate ─────────────────────────────
 @router.post("/api/admin/users/{uid}/activate")
 async def admin_activate_user(request: Request, uid: str):
-    await require_admin(request)
+    await require_admin_api(request)
     client = _admin_client()
     client.table("profiles").update({"is_active": True}).eq("id", uid).execute()
     # Unban in Supabase Auth
@@ -546,9 +554,7 @@ async def admin_delete_user(request: Request, uid: str):
       2. Delete profile row
       3. Delete from Supabase Auth (revokes all sessions)
     """
-    await require_admin(request)
-    # Prevent self-deletion
-    me = await require_admin(request)
+    me = await require_admin_api(request)
     if me["id"] == uid:
         raise HTTPException(400, "Cannot delete your own account")
 
@@ -575,6 +581,6 @@ async def admin_delete_user(request: Request, uid: str):
 # ─── Admin: GET /api/admin/users/{uid}/analyses ──────────────────────────────
 @router.get("/api/admin/users/{uid}/analyses")
 async def admin_get_user_analyses(request: Request, uid: str):
-    await require_admin(request)
+    await require_admin_api(request)
     rows = _fetch_user_analyses(uid)
     return rows

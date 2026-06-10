@@ -115,6 +115,7 @@ async def require_admin(request: Request):
     """
     Like require_user but additionally requires is_admin=True.
     Returns user if valid, or RedirectResponse if not.
+    Use only for HTML page routes — JSON API routes must use require_admin_api.
     """
     from fastapi.responses import RedirectResponse
 
@@ -130,15 +131,43 @@ async def require_admin(request: Request):
     return user
 
 
+async def require_user_api(request: Request) -> dict:
+    """
+    For JSON API endpoints: raises 401 if not authenticated.
+    Never redirects — always returns a dict or raises HTTPException.
+    """
+    from fastapi import HTTPException
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return user
+
+
+async def require_admin_api(request: Request) -> dict:
+    """
+    For JSON API endpoints: raises 401 if not authenticated, 403 if not admin.
+    Never redirects — always returns a dict or raises HTTPException.
+    """
+    from fastapi import HTTPException
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
 def set_auth_cookie(response, access_token: str, refresh_token: str) -> None:
-    """Set http-only auth cookies."""
+    """Set http-only auth cookies. secure=True in production (HTTPS only)."""
+    import os
+    _secure = os.getenv("ENVIRONMENT", "development") == "production"
     response.set_cookie(
         "sb_access_token",
         access_token,
         httponly=True,
         samesite="lax",
         max_age=60 * 60 * 24 * 7,   # 7 days
-        secure=False,                 # set True in production with HTTPS
+        secure=_secure,
     )
     response.set_cookie(
         "sb_refresh_token",
@@ -146,7 +175,7 @@ def set_auth_cookie(response, access_token: str, refresh_token: str) -> None:
         httponly=True,
         samesite="lax",
         max_age=60 * 60 * 24 * 30,  # 30 days
-        secure=False,
+        secure=_secure,
     )
 
 

@@ -7,6 +7,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ── Runtime environment ──────────────────────────────────────────────────────
+# Set ENVIRONMENT=production in your deployment env to harden security.
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+IS_PRODUCTION = ENVIRONMENT == "production"
+
 # ── Price data providers ─────────────────────────────────────────────────────
 TWELVE_DATA_KEY   = os.getenv("TWELVE_DATA_KEY", "")
 ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY", "")

@@ -238,11 +238,17 @@ async def login_page(request: Request):
     if user:
         next_url = request.query_params.get("next", "/dashboard")
         return RedirectResponse(next_url, status_code=302)
-    error    = request.query_params.get("error", "")
-    next_url = request.query_params.get("next", "")
+    error       = request.query_params.get("error", "")
+    next_url    = request.query_params.get("next", "")
+    blocked     = request.query_params.get("blocked", "")
+    try:
+        retry_after = int(request.query_params.get("retry_after", "0") or "0")
+    except ValueError:
+        retry_after = 0
     return templates.TemplateResponse(
         request, "login.html",
-        {"user": None, "error": error, "next": next_url},
+        {"user": None, "error": error, "next": next_url,
+         "blocked": blocked, "retry_after": retry_after},
     )
 
 
@@ -254,23 +260,52 @@ async def login_submit(
     password: str = Form(...),
     next_url: str = Form(""),
 ):
+    from app.rate_limit import get_client_ip, is_blocked, record_failure, clear as rl_clear
+
+    ip     = get_client_ip(request)
+    suffix = f"&next={next_url}" if next_url else ""
+
+    # ── Pre-check: already blocked? ────────────────────────────────────────────
+    blocked, retry_after = is_blocked(ip)
+    if blocked:
+        return RedirectResponse(
+            f"/login?blocked=1&retry_after={retry_after}{suffix}",
+            status_code=302,
+        )
+
+    # ── Attempt authentication ─────────────────────────────────────────────────
     try:
         client   = get_client()
         response = client.auth.sign_in_with_password({"email": email, "password": password})
         session  = response.session
         if not session:
-            suffix = f"&next={next_url}" if next_url else ""
-            return RedirectResponse(f"/login?error=Invalid+credentials{suffix}", status_code=302)
+            record_failure(ip)
+            blocked2, retry_after2 = is_blocked(ip)
+            if blocked2:
+                return RedirectResponse(
+                    f"/login?blocked=1&retry_after={retry_after2}{suffix}",
+                    status_code=302,
+                )
+            return RedirectResponse(f"/login?error=Invalid+email+or+password{suffix}", status_code=302)
 
-        dest = next_url if (next_url and next_url.startswith("/")) else "/dashboard"
+        # ── Success: clear the failure counter ─────────────────────────────────
+        rl_clear(ip)
+        dest     = next_url if (next_url and next_url.startswith("/")) else "/dashboard"
         redirect = RedirectResponse(dest, status_code=302)
         set_auth_cookie(redirect, session.access_token, session.refresh_token)
         return redirect
+
     except Exception as exc:
-        msg    = str(exc).replace(" ", "+")
-        suffix = f"&next={next_url}" if next_url else ""
-        if "Invalid" in str(exc) or "credentials" in str(exc).lower():
-            msg = "Invalid+email+or+password"
+        record_failure(ip)
+        blocked2, retry_after2 = is_blocked(ip)
+        if blocked2:
+            return RedirectResponse(
+                f"/login?blocked=1&retry_after={retry_after2}{suffix}",
+                status_code=302,
+            )
+        msg = "Invalid+email+or+password" if (
+            "Invalid" in str(exc) or "credentials" in str(exc).lower()
+        ) else str(exc).replace(" ", "+")
         return RedirectResponse(f"/login?error={msg}{suffix}", status_code=302)
 
 
